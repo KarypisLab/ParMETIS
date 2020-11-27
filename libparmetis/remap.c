@@ -80,7 +80,7 @@ void ParallelTotalVReMap(ctrl_t *ctrl, idx_t *lpwgts, idx_t *map, idx_t npasses,
 
   done = nmapped = 0;
   for (pass=0; pass<npasses; pass++) {
-    maxipwgt = iargmax(nparts, mylpwgts);
+    maxipwgt = iargmax(nparts, mylpwgts, 1);
 
     if (mylpwgts[maxipwgt] > 0 && !done) {
       send.key = -mylpwgts[maxipwgt];

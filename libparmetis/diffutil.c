@@ -117,10 +117,10 @@ void Mc_ComputeMoveStatistics(ctrl_t *ctrl, graph_t *graph, idx_t *nmoved, idx_t
   gkMPI_Allreduce((void *)lend, (void *)gend, nparts, IDX_T, MPI_SUM, ctrl->comm);
 
   *nmoved = isum(nparts, gleft, 1);
-  *maxout = imax(nparts, gleft);
+  *maxout = imax(nparts, gleft, 1);
   for (i=0; i<nparts; i++)
     lstart[i] = gend[i]+gleft[i]-gstart[i];
-  *maxin = imax(nparts, lstart);
+  *maxin = imax(nparts, lstart, 1);
 
   gk_free((void **)&lstart, (void **)&gstart, (void **)&lleft, (void **)&gleft, (void **)&lend, (void **)&gend, LTERM);
 }

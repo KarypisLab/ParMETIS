@@ -324,10 +324,10 @@ idx_t BalanceMyLink(ctrl_t *ctrl, graph_t *graph, idx_t *home, idx_t me,
     if (where[i] != home[i])
       totalv += vsize[i];
 
-      for (j=xadj[i]; j<xadj[i+1]; j++) {
-        if (where[adjncy[j]] != where[i])
-          cut += adjwgt[j];
-      }
+    for (j=xadj[i]; j<xadj[i+1]; j++) {
+      if (where[adjncy[j]] != where[i])
+        cut += adjwgt[j];
+    }
   }
   cut /= 2;
   mycost = cut*ipc_factor + totalv*redist_factor;

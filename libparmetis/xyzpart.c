@@ -131,7 +131,7 @@ void IRBinCoordinates(ctrl_t *ctrl, graph_t *graph, idx_t ndims, real_t *xyz,
       */
 
       /* break-out if things look reasonably balanced */
-      if (imax(nbins, gcounts) < 4*gnvtxs/nbins)
+      if (imax(nbins, gcounts, 1) < 4*gnvtxs/nbins)
         break;
 
       /* refine buckets */

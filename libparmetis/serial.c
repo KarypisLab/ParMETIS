@@ -565,7 +565,7 @@ void Mc_Serial_FM_2WayRefine(ctrl_t *ctrl, graph_t *graph, real_t *tpwgts, idx_t
     parts[1][i] = rpqCreate(nvtxs);
   }
   for (i=0; i<nvtxs; i++)
-    qnum[i] = rargmax(ncon, nvwgt+i*ncon);
+    qnum[i] = rargmax(ncon, nvwgt+i*ncon, 1);
 
   origbal = Serial_Compute2WayHLoadImbalance(ncon, npwgts, tpwgts);
 
@@ -861,7 +861,7 @@ void Mc_Serial_Balance2Way(ctrl_t *ctrl, graph_t *graph, real_t *tpwgts, real_t 
   }
 
   for (i=0; i<nvtxs; i++) {
-    qnum[i] = rargmax(ncon, nvwgt+i*ncon);
+    qnum[i] = rargmax(ncon, nvwgt+i*ncon, 1);
     qsizes[qnum[i]][where[i]]++;
   }
 
@@ -1055,7 +1055,7 @@ void Mc_Serial_Init2WayBalance(ctrl_t *ctrl, graph_t *graph, real_t *tpwgts)
 
   /* Compute the queues in which each vertex will be assigned to */
   for (i=0; i<nvtxs; i++)
-    qnum[i] = rargmax(ncon, nvwgt+i*ncon);
+    qnum[i] = rargmax(ncon, nvwgt+i*ncon, 1);
 
   /* Insert the nodes of the proper partition in the appropriate priority queue */
   for (i=0; i<nvtxs; i++) {

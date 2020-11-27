@@ -82,7 +82,7 @@ real_t WavefrontDiffusion(ctrl_t *ctrl, graph_t *graph, idx_t *home)
       if (psize[mind] > 0)
         continue;
 
-      maxd = iargmax(nparts, psize);
+      maxd = iargmax(nparts, psize, 1);
       if (psize[maxd] == 1)
         break;  /* we cannot do anything if the heaviest subdomain contains one vertex! */
       for (i=0; i<nvtxs; i++) {
@@ -232,7 +232,7 @@ real_t WavefrontDiffusion(ctrl_t *ctrl, graph_t *graph, idx_t *home)
     }
 
     if (l % 2 == 1) {
-      balance = rmax(nparts, npwgts)*nparts;
+      balance = rmax(nparts, npwgts, 1)*nparts;
       if (balance < ubfactor + 0.035)
         done = 1;
 

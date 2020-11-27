@@ -347,7 +347,7 @@ void Order_Partition(ctrl_t *ctrl, graph_t *graph, idx_t *nlevels, idx_t clevel)
   IFSET(ctrl->dbglvl, DBG_PROGRESS, rprintf(ctrl, "[%6"PRIDX" %8"PRIDX" %5"PRIDX" %5"PRIDX"][%"PRIDX"][%"PRIDX"]\n",
         graph->gnvtxs, GlobalSESum(ctrl, graph->nedges), GlobalSEMin(ctrl, graph->nvtxs),
         GlobalSEMax(ctrl, graph->nvtxs), ctrl->CoarsenTo,
-        GlobalSEMax(ctrl, imax(graph->nvtxs, graph->vwgt))));
+        GlobalSEMax(ctrl, imax(graph->nvtxs, graph->vwgt, 1))));
 
   if ((*nlevels != -1 && *nlevels == clevel) ||
       (*nlevels == -1 && 

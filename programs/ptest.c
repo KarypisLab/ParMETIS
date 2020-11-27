@@ -166,7 +166,7 @@ void TestParMetis_GPart(char *filename, char *xyzfile, MPI_Comm comm)
     if (mype == 0)
       printf("\nTesting ParMETIS_V3_PartGeom\n");
 
-      ParMETIS_V3_PartGeom(graph.vtxdist, &ndims, xyz, part, &comm); 
+    ParMETIS_V3_PartGeom(graph.vtxdist, &ndims, xyz, part, &comm); 
 
     realcut = ComputeRealCut(graph.vtxdist, part, filename, comm);
     if (mype == 0) 

@@ -108,7 +108,7 @@ idx_t Mc_Diffusion(ctrl_t *ctrl, graph_t *graph, idx_t *vtxdist, idx_t *where,
       rset(nparts, 0.0, solution);
       ComputeLoad(graph, nparts, load, ctrl->tpwgts, h);
 
-      lbvec[h] = (rmax(nparts, load)+1.0/nparts) * (real_t)nparts;
+      lbvec[h] = (rmax(nparts, load, 1)+1.0/nparts) * (real_t)nparts;
 
       ConjGrad2(&matrix, load, solution, 0.001, workspace);
       ComputeTransferVector(ncon, &matrix, solution, transfer, h);
@@ -119,8 +119,8 @@ idx_t Mc_Diffusion(ctrl_t *ctrl, graph_t *graph, idx_t *vtxdist, idx_t *where,
     maxdiff = 0.0;
     for (i=0; i<nparts; i++) {
       for (j=rowptr[i]; j<rowptr[i+1]; j++) {
-        maxflow = rmax(ncon, transfer+j*ncon);
-        minflow = rmin(ncon, transfer+j*ncon);
+        maxflow = rmax(ncon, transfer+j*ncon, 1);
+        minflow = rmin(ncon, transfer+j*ncon, 1);
         maxdiff = (maxflow - minflow > maxdiff) ? maxflow - minflow : maxdiff;
       }
     }

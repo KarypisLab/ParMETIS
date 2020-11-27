@@ -1,15 +1,14 @@
 # Configuration options.
-gdb        = not-set
+cc         = mpicc
+db        = not-set
 assert     = not-set
 assert2    = not-set
 debug      = not-set
 openmp     = not-set
 prefix     = not-set
+shared     = not-set
 gklib_path = not-set
 metis_path = not-set
-shared     = not-set
-cc         = mpicc
-cxx        = mpicxx
 
 
 # Basically proxies everything to the builddir cmake.
@@ -23,13 +22,15 @@ BUILDDIR = build/$(systype)-$(cputype)
 
 # Process configuration options.
 CONFIG_FLAGS = -DCMAKE_VERBOSE_MAKEFILE=1
-ifeq ($(gklib_path), not-set)
-    gklib_path = METIS/GKlib
+ifneq ($(gklib_path), not-set)
+    CONFIG_FLAGS += -DGKLIB_PATH=$(abspath $(gklib_path)) 
 endif
-ifeq ($(metis_path), not-set)
-    metis_path = METIS
+ifneq ($(metis_path), not-set)
+    CONFIG_FLAGS += -DMETIS_PATH=$(abspath $(metis_path))
 endif
-CONFIG_FLAGS += -DGKLIB_PATH=$(abspath $(gklib_path)) -DMETIS_PATH=$(abspath $(metis_path))
+ifneq ($(prefix), not-set)
+    CONFIG_FLAGS += -DCMAKE_INSTALL_PREFIX=$(prefix)
+endif
 ifneq ($(gdb), not-set)
     CONFIG_FLAGS += -DGDB=$(gdb)
 endif
@@ -45,17 +46,11 @@ endif
 ifneq ($(openmp), not-set)
     CONFIG_FLAGS += -DOPENMP=$(openmp)
 endif
-ifneq ($(prefix), not-set)
-    CONFIG_FLAGS += -DCMAKE_INSTALL_PREFIX=$(prefix)
-endif
 ifneq ($(shared), not-set)
     CONFIG_FLAGS += -DSHARED=1
 endif
 ifneq ($(cc), not-set)
     CONFIG_FLAGS += -DCMAKE_C_COMPILER=$(cc)
-endif
-ifneq ($(cxx), not-set)
-    CONFIG_FLAGS += -DCMAKE_CXX_COMPILER=$(cxx)
 endif
 
 define run-config

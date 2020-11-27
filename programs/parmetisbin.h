@@ -19,7 +19,7 @@
 #include <GKlib.h>
 #include <parmetis.h>
 
-#include "../metis/libmetis/gklib_defs.h"
+#include "../libparmetis/gklib_defs.h"
 #include "../libparmetis/rename.h"
 #include "../libparmetis/defs.h"
 #include "../libparmetis/struct.h"

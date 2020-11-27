@@ -54,11 +54,11 @@ int ParMETIS_V3_Mesh2Dual(idx_t *elmdist, idx_t *eptr, idx_t *eind,
   /*****************************/
   /* Determine number of nodes */
   /*****************************/
-  gminnode = GlobalSEMinComm(*comm, imin(eptr[nelms], eind));
+  gminnode = GlobalSEMinComm(*comm, imin(eptr[nelms], eind, 1));
   for (i=0; i<eptr[nelms]; i++)
     eind[i] -= gminnode;
 
-  gmaxnode = GlobalSEMaxComm(*comm, imax(eptr[nelms], eind));
+  gmaxnode = GlobalSEMaxComm(*comm, imax(eptr[nelms], eind, 1));
 
 
   /**************************/

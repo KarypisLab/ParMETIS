@@ -986,12 +986,12 @@ void ParallelReadMesh(mesh_t *mesh, char *filename, MPI_Comm comm)
   /*********************************/
   /* now check for number of nodes */
   /*********************************/
-  minnode = imin(nelms*esize, elements);
+  minnode = imin(nelms*esize, elements, 1);
   MPI_Allreduce((void *)&minnode, (void *)&gminnode, 1, IDX_T, MPI_MIN, comm);
   for (i=0; i<nelms*esize; i++)
     elements[i] -= gminnode;
 
-  maxnode = imax(nelms*esize, elements);
+  maxnode = imax(nelms*esize, elements, 1);
   MPI_Allreduce((void *)&maxnode, (void *)&gmaxnode, 1, IDX_T, MPI_MAX, comm);
   mesh->gnns = gmaxnode+1;
 

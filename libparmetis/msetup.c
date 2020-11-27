@@ -44,13 +44,13 @@ mesh_t *SetUpMesh(idx_t *etype, idx_t *ncon, idx_t *elmdist, idx_t *elements,
     mesh->elmwgt = ismalloc(mesh->nelms*mesh->ncon, 1, "SetUpMesh: elmwgt");
   }
 
-  minnode = imin(mesh->nelms*mesh->esize, elements);
+  minnode = imin(mesh->nelms*mesh->esize, elements, 1);
   gkMPI_Allreduce((void *)&minnode, (void *)&gminnode, 1, IDX_T, MPI_MIN, *comm);
   for (i=0; i<mesh->nelms*mesh->esize; i++)
     elements[i] -= gminnode;
   mesh->gminnode = gminnode;
 
-  maxnode = imax(mesh->nelms*mesh->esize, elements);
+  maxnode = imax(mesh->nelms*mesh->esize, elements, 1);
   gkMPI_Allreduce((void *)&maxnode, (void *)&gmaxnode, 1, IDX_T, MPI_MAX, *comm);
   mesh->gnns = gmaxnode+1;
 
