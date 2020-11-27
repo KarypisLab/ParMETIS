@@ -1,0 +1,3 @@
+[submodule "GKlib"]
+	path = metis
+	url = https://github.com/KarypisLab/METIS.git
