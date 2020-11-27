@@ -24,10 +24,10 @@ BUILDDIR = build/$(systype)-$(cputype)
 # Process configuration options.
 CONFIG_FLAGS = -DCMAKE_VERBOSE_MAKEFILE=1
 ifeq ($(gklib_path), not-set)
-    gklib_path = metis/GKlib
+    gklib_path = METIS/GKlib
 endif
 ifeq ($(metis_path), not-set)
-    metis_path = metis
+    metis_path = METIS
 endif
 CONFIG_FLAGS += -DGKLIB_PATH=$(abspath $(gklib_path)) -DMETIS_PATH=$(abspath $(metis_path))
 ifneq ($(gdb), not-set)

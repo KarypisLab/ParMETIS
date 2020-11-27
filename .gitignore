@@ -57,5 +57,6 @@ graphs/*.part.*
 graphs/*.iperm
 graphs/*.epart.*
 graphs/*.npart.*
+METIS/
 .svn/
 
