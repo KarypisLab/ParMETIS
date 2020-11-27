@@ -50,3 +50,13 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# GK things
+build/
+graphs/*.part.*
+graphs/*.iperm
+graphs/*.epart.*
+graphs/*.npart.*
+GKlib
+.svn/
+
