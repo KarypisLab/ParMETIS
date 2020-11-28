@@ -1,6 +1,6 @@
 # Configuration options.
 cc         = mpicc
-db        = not-set
+db         = not-set
 assert     = not-set
 assert2    = not-set
 debug      = not-set

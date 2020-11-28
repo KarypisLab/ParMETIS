@@ -6,7 +6,7 @@ add_executable(pm_mtest mtest.c io.c)
 add_executable(pm_parmetis parmetis.c io.c adaptgraph.c)
 add_executable(pm_pometis pometis.c io.c)
 
-# Link to libparmetis.
+# Link with the required libraries 
 foreach(prog pm_ptest pm_mtest pm_parmetis pm_pometis)
   target_link_libraries(${prog} parmetis metis GKlib m)
 endforeach(prog)
