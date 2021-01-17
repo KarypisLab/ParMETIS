@@ -137,6 +137,9 @@ typedef struct graph_t {
   NRInfoType *nrinfo;
   idx_t *sepind;		/* The indices of the vertices in the separator */
 
+  /* Vertex/edge metadata information use by DistDGL */
+  idx_t *vmptr, *vmdata, *emptr, *emdata;
+
   idx_t lmincut, mincut;
 
   idx_t level;

@@ -116,7 +116,7 @@ graph_t *CreateGraph(void)
 {
   graph_t *graph;
 
-  graph = (graph_t *)gk_malloc(sizeof(graph_t), "CreateCoarseGraph: graph");
+  graph = (graph_t *)gk_malloc(sizeof(graph_t), "CreateGraph: graph");
 
   InitGraph(graph);
 

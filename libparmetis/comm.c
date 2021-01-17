@@ -431,7 +431,6 @@ idx_t GlobalSEMinComm(MPI_Comm comm, idx_t value)
   return min;
 }
 
-
 /*************************************************************************
 * This function computes the max of a single element
 **************************************************************************/
@@ -456,8 +455,6 @@ idx_t GlobalSESumComm(MPI_Comm comm, idx_t value)
   return min;
 }
 
-
-
 /*************************************************************************
 * This function computes the max of a single element
 **************************************************************************/
@@ -469,8 +466,6 @@ real_t GlobalSEMaxFloat(ctrl_t *ctrl, real_t value)
 
   return max;
 }
-
-
 
 /*************************************************************************
 * This function computes the max of a single element
