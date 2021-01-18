@@ -12,6 +12,15 @@
 
 #define CHUNKSIZE (1<<14)
 
+/* The following is to perform a cyclic distribution of the input vertex IDs
+   in order to balance the adjancency lists during the partitioning computations */
+/* (u%npes)*lnvtxs + u/npes */
+#define ToCyclicMap(id, nbuckets, bucketsize) \
+            (((id)%(nbuckets))*(bucketsize) + (id)/(nbuckets))
+/* (u%lnvtxs)*npes + u/lnvtxs */
+#define FromCyclicMap(id, nbuckets, bucketsize) \
+            (((id)%(bucketsize))*(nbuckets) + (id)/(bucketsize))
+
 int DistDGL_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm);
 graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm);
 graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, MPI_Comm comm);
@@ -253,9 +262,9 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
           rlen = strlen(gk_strtprune(line, "\n\r"));
           nlinesread++;
           sscanf(line, "%"SCIDX" %"SCIDX, &u, &v);
-          u = vtxdist[u%npes] + u/npes;
-          v = vtxdist[v%npes] + v/npes;
-  
+          u = ToCyclicMap(u, npes, lnvtxs);
+          v = ToCyclicMap(v, npes, lnvtxs);
+
           //if (nlinesread == 1)
           //  printf("u: %"PRIDX" v:%"PRIDX" mdata: %s\n", u, v, line);
 
@@ -385,8 +394,8 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
         lcoo[++j] = lcoo[i];
       }
     }
-    lnedges = j;
-  
+    lnedges = j+1;
+
     //printf("[%03"PRIDX"] Done with sorting and de-duplication.\n", mype);
     gkMPI_Barrier(comm);
   
@@ -593,6 +602,33 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     gk_free((void **)&con_chunks_len, &meta_chunks_len, LTERM);
   }
 
+#ifdef XXX
+  /* write the graph in stdout */
+  {
+    idx_t u, v, i, j;
+
+    /*
+          u = vtxdist[u%npes] + u/npes;
+          v = vtxdist[v%npes] + v/npes;
+    */
+
+    for (pe=0; pe<npes; pe++) {
+      if (mype == pe) {
+        for (i=0; i<graph->nvtxs; i++) {
+          for (j=graph->xadj[i]; j<graph->xadj[i+1]; j++) {
+            u = graph->vtxdist[mype]+i;
+            v = graph->adjncy[j];
+
+            printf("XXX %"PRIDX" %"PRIDX"\n", 
+                FromCyclicMap(u, npes, lnvtxs), FromCyclicMap(v, npes, lnvtxs));
+          }
+        }
+        fflush(stdout);
+      }
+      gkMPI_Barrier(comm);
+    }
+  }
+#endif
 
 ERROR_EXIT:
   gk_free((void **)&filename, &line, LTERM);
