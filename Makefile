@@ -5,10 +5,10 @@ assert     = not-set
 assert2    = not-set
 debug      = not-set
 openmp     = not-set
-prefix     = not-set
+prefix     = ~/local
 shared     = not-set
-gklib_path = not-set
-metis_path = not-set
+gklib_path = ~/local
+metis_path = ~/local
 
 
 # Basically proxies everything to the builddir cmake.
