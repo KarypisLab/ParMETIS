@@ -23,7 +23,7 @@
 /*************************************************************************/
 void Match_Global(ctrl_t *ctrl, graph_t *graph)
 {
-  idx_t h, i, ii, j, k;
+  idx_t h, i, ii, j, jj, k, v;
   idx_t nnbrs, nvtxs, ncon, cnvtxs, firstvtx, lastvtx, maxi, maxidx, nkept;
   idx_t otherlastvtx, nrequests, nchanged, pass, nmatched, wside;
   idx_t *xadj, *adjncy, *adjwgt, *vtxdist, *home, *myhome;
@@ -166,6 +166,30 @@ void Match_Global(ctrl_t *ctrl, graph_t *graph)
                 maxi   = j;
                 maxidx = k;
               }
+            }
+          }
+        }
+
+        /* two-hop */
+        if (maxi == -1 && pass == NMATCH_PASSES-1) {
+          for (j=xadj[i]; j<xadj[i+1]; j++) {
+            if ((v = adjncy[j]) >= nvtxs)
+              continue;
+            for (jj=xadj[v]; jj<xadj[v+1]; jj++) {
+              if ((k = adjncy[jj]) >= nvtxs)
+                continue;
+              //myprintf(ctrl, "%d %d %d %d %d %d\n", i, j, v, jj, k);
+              if (k != i && match[k] == UNMATCHED) {
+                maxi = jj;
+                break;
+              }
+            }
+            if (maxi != -1) {
+              /*
+              myprintf(ctrl, "TH: %d %d %d %d %d\n", i, k,
+                  xadj[i+1]-xadj[i], xadj[v+1]-xadj[v], xadj[k+1]-xadj[k]);
+              */
+              break;
             }
           }
         }
