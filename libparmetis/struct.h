@@ -140,6 +140,7 @@ typedef struct graph_t {
   /* Vertex/edge metadata information use by DistDGL */
   idx_t *vmptr, *emptr;
   char *vmdata, *emdata;
+  idx_t *vtype;
 
   idx_t lmincut, mincut;
 

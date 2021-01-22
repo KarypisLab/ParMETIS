@@ -39,8 +39,8 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm);
 graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe, MPI_Comm comm);
 void DistDGL_CheckMGraph(ctrl_t *ctrl, graph_t *graph, idx_t nparts_per_pe);
 void i2kvsorti(size_t n, i2kv_t *base);
+void i2kvsortii(size_t n, i2kv_t *base);
 void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe, MPI_Comm comm);
-
 idx_t DistDGL_mapFromCyclic(idx_t u, idx_t npes, idx_t *vtxdist);
 idx_t DistDGL_mapToCyclic(idx_t u, idx_t npes, idx_t *vtxdist);
 
@@ -148,7 +148,7 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
   ctrl_t *ctrl;
   idx_t h, i, ii, j, jj, k, nvtxs, nsnbrs, nrnbrs;
   idx_t *xadj, *adjncy, *mvtxdist;
-  idx_t *where, *newlabel, *lpwgts, *gpwgts;
+  idx_t *where, *newlabel, *vtype, *lpwgts, *gpwgts;
   idx_t *sgraph, *rgraph;
   mvinfo_t *sinfo, *rinfo;
   graph_t *graph, *mgraph;
@@ -183,6 +183,7 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
   emptr  = ograph->emptr;
   vmdata = ograph->vmdata;
   emdata = ograph->emdata;
+  vtype  = ograph->vtype;
 
   mvtxdist = imalloc(nparts+1, "DistDGL_MoveGraph: mvtxdist");
 
@@ -230,7 +231,7 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
 
   /* Use lpwgts/gpwgts as pointers to where data will be sent/received, respectively */
   for (nsnbrs=0, i=0; i<nparts; i++) {
-    lpwgts[i] = 2*sinfo[i].nvtxs 
+    lpwgts[i] = 3*sinfo[i].nvtxs 
                 + sinfo[i].nedges 
                 + sinfo[i].nvtxs 
                 + sinfo[i].nvmdata 
@@ -248,7 +249,7 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
      different processors. */
   for (nrnbrs=0, k=0; k<nparts_per_pe; k++) {
     for (i=0; i<npes; i++) {
-      gpwgts[k*npes+i] = 2*rinfo[i*nparts_per_pe+k].nvtxs 
+      gpwgts[k*npes+i] = 3*rinfo[i*nparts_per_pe+k].nvtxs 
                          + rinfo[i*nparts_per_pe+k].nedges 
                          + rinfo[i*nparts_per_pe+k].nvtxs 
                          + rinfo[i*nparts_per_pe+k].nvmdata 
@@ -286,6 +287,7 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
     ii = lpwgts[where[i]];
     sgraph[ii++] = xadj[i+1]-xadj[i];
     sgraph[ii++] = where[i];
+    sgraph[ii++] = vtype[i];
     for (j=xadj[i]; j<xadj[i+1]; j++)
       sgraph[ii++] = newlabel[adjncy[j]];
 
@@ -351,11 +353,13 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
   vmdata = mgraph->vmdata = gk_cmalloc(nvmdata*idxwidth, "MMG: mgraph->vmdata");
   emdata = mgraph->emdata = gk_cmalloc(nemdata*idxwidth, "MMG: mgraph->emdata");
   where  = mgraph->where  = imalloc(nvtxs, "MMG: mgraph->where");
+  vtype  = mgraph->vtype  = imalloc(nvtxs, "MMG: mgraph->vtype");
 
   idx_t *ivptr=(idx_t *)vmdata, *ieptr=(idx_t *)emdata;
   for (jj=ii=i=0; i<nvtxs; i++) {
     xadj[i]  = rgraph[ii++];
     where[i] = rgraph[ii++];
+    vtype[i] = rgraph[ii++];
     for (j=0; j<xadj[i]; j++)
       adjncy[jj+j] = rgraph[ii++];
 
@@ -430,6 +434,84 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
 }
 
 
+#ifdef XXXX
+/*************************************************************************/
+/*! This function takes a graph and its partition vector and creates a new
+     graph corresponding to the one after the movement */
+/*************************************************************************/
+DistDGL_TypePermute(graph_t *ograph, idx_t nparts_per_pe, MPI_Comm comm)
+{
+  idx_t npes, mype, nparts;
+  ctrl_t *ctrl;
+  idx_t h, i, ii, j, jj, k, nvtxs;
+  idx_t *xadj, *adjncy;
+  idx_t *where, *newlabel, *vtype;
+  graph_t *graph, *mgraph;
+  idx_t *vmptr, *emptr;
+  char *vmdata, *emdata;
+  idx_t *iptr, ilen; 
+  i2kv_t *cand;
+  idx_t *cvtxdist, *fvtxdist;
+
+  fvtxdist = ograph->vtxdist;
+  vmptr    = ograph->vmptr;
+  emptr    = ograph->emptr;
+  vmdata   = ograph->vmdata;
+  emdata   = ograph->emdata;
+  vtype    = ograph->vtype;
+  where    = ograph->where;
+
+  gkMPI_Comm_size(comm, &npes);
+  ctrl = SetupCtrl(PARMETIS_OP_KMETIS, NULL, 1, npes, NULL, NULL, comm); 
+  mype = ctrl->mype;
+
+  ctrl->CoarsenTo = 1;  /* Needed by SetUpGraph, otherwise we can FP errors */
+  vtxdist = imalloc(npes+1, "DistDGL_TypePermute: vtxdist");
+  for (i=0; i<npes; i++)
+    cvtxdist[i] = fvtxdist[(i+1)*nparts_per_pe]-fvtxdist[i*nparts_per_pe];
+  MAKECSR(i, npes, cvtxdist);
+
+  graph = SetupGraph(ctrl, 1, cvtxdist, ograph->xadj, NULL, NULL, ograph->adjncy, NULL, 0);
+  AllocateWSpace(ctrl, 0);
+
+  CommSetup(ctrl, graph);
+
+  nparts = npes*nparts_per_pe;
+
+  WCOREPUSH;
+
+  nvtxs   = graph->nvtxs;
+  xadj    = graph->xadj;
+  adjncy  = graph->adjncy;
+
+  cand = (i2kv_t *)iwspacemalloc(ctrl, nvtxs*sizeof(i2kv_t)/sizeof(idx_t));
+  for (i=0; i<nvtxs; i++) {
+    cand[i].key1 = where[i];
+    cand[i].key2 = vtype[i];
+    cand[i].val  = i;
+  }
+  i2kvsortii(nvtxs, cand);
+
+  newlabel = iwspacemalloc(ctrl, nvtxs+graph->nrecv);
+  for (i=0; i<nvtxs; i++) 
+    newlabel[cand[i].key3] = cvtxdist[mype]+i;
+
+  /* Send the newlabel info to processors storing adjacent interface nodes */
+  CommInterfaceData(ctrl, graph, newlabel, newlabel+nvtxs);
+
+
+
+
+
+  WCOREPOP;
+
+  graph->where = NULL;
+  FreeInitialGraphAndRemap(graph);
+  FreeCtrl(&ctrl);
+
+}
+#endif
+
 /*************************************************************************/
 /*! Checks the local consistency of moved graph. */
 /*************************************************************************/
@@ -477,7 +559,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
   idx_t npes, mype, ier;
   graph_t *graph=NULL;
   idx_t gnvtxs, gnedges, nvtxs, ncon; 
-  idx_t *vtxdist, *xadj, *adjncy, *vwgt;
+  idx_t *vtxdist, *xadj, *adjncy, *vwgt, *vtype;
   MPI_Status stat;
   ssize_t rlen, fsize;
   size_t lnlen=0;
@@ -529,12 +611,13 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
   if (GlobalSEMaxComm(comm, ier) > 0)
     goto ERROR_EXIT;
 
+  ncon++;  /* the +1 is for the node type */
   gkMPI_Bcast(&gnvtxs, 1, IDX_T, 0, comm);
   gkMPI_Bcast(&gnedges, 1, IDX_T, 0, comm);
   gkMPI_Bcast(&ncon, 1, IDX_T, 0, comm);
 
-  //printf("[%03"PRIDX"] gnvtxs: %"PRIDX", gnedges: %"PRIDX", ncon: %"PRIDX"\n", 
-  //    mype, gnvtxs, gnedges, ncon);
+  printf("[%03"PRIDX"] gnvtxs: %"PRIDX", gnedges: %"PRIDX", ncon: %"PRIDX"\n", 
+      mype, gnvtxs, gnedges, ncon);
 
 
   /* ======================================================= */
@@ -542,7 +625,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
   /* ======================================================= */
   graph = CreateGraph();
   graph->gnvtxs = gnvtxs;
-  graph->ncon = ncon;
+  graph->ncon = ncon-1;
 
   vtxdist = graph->vtxdist = imalloc(npes+1, "DistDGL_ReadGraph: vtxdist");
   for (pe=0; pe<npes; pe++)
@@ -933,14 +1016,16 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     vmptr  = graph->vmptr  = imalloc(nvtxs+1, "DistDGL_ReadGraph: vmptr");
     vmdata = graph->vmdata = gk_cmalloc(lnmeta+nvtxs*idxwidth, "DistDGL_ReadGraph: vmdata");
 
-    vwgt = graph->vwgt = imalloc(nvtxs*ncon, "DistDGL_ReadGraph: vwgt");
+    vwgt  = graph->vwgt  = imalloc(nvtxs*(ncon-1), "DistDGL_ReadGraph: vwgt");
+    vtype = graph->vtype = imalloc(nvtxs, "DistDGL_ReadGraph: vwgt");
 
     nvtxs = 0;
     vmptr[0] = 0;
     for (chunk=0; chunk<nchunks; chunk++) {
       for (i=0; i<con_chunks_len[chunk]; i++, nvtxs++) {
-        for (j=0; j<ncon; j++)
-          vwgt[ncon*nvtxs+j] = con_chunks[chunk][(ncon+1)*i+j];
+        vtype[nvtxs] = con_chunks[chunk][(ncon+1)*i+0];
+        for (j=1; j<ncon; j++) /* the 1st constraint is the vertex type */
+          vwgt[(ncon-1)*nvtxs+j-1] = con_chunks[chunk][(ncon+1)*i+j];
 
         j = strlen(meta_chunks[chunk]+con_chunks[chunk][(ncon+1)*i+ncon])+1;
         gk_ccopy(j+1, meta_chunks[chunk]+con_chunks[chunk][(ncon+1)*i+ncon], vmdata+vmptr[nvtxs]);
@@ -995,15 +1080,75 @@ ERROR_EXIT:
 void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe, 
          MPI_Comm comm)
 {
-  idx_t i, j, jj, k, nvtxs, pnum, firstvtx;
-  idx_t *xadj, *adjncy, *vtxdist, *vmptr, *emptr, *where;
+  idx_t i, j, ii, jj, k, nvtxs, pnum, firstvtx;
+  idx_t *xadj, *adjncy, *vtxdist, *vmptr, *emptr, *where, *vtype, *newlabel;
   char *filename, *vmdata, *emdata;
   FILE *nodefps[nparts_per_pe], *edgefps[nparts_per_pe], *statfps[nparts_per_pe];
   idx_t lnvtxs[nparts_per_pe], lnedges[nparts_per_pe];
+  i2kv_t *cand;
 
   idx_t npes, mype;
   gkMPI_Comm_size(comm, &npes);
   gkMPI_Comm_rank(comm, &mype);
+
+  nvtxs   = graph->nvtxs;
+  xadj    = graph->xadj;
+  adjncy  = graph->adjncy;
+  vtxdist = graph->vtxdist;
+  vmptr   = graph->vmptr;
+  emptr   = graph->emptr;
+  vmdata  = graph->vmdata;
+  emdata  = graph->emdata;
+  where   = graph->where;
+  vtype   = graph->vtype;
+
+  firstvtx = vtxdist[mype*nparts_per_pe];
+
+
+  {
+    ctrl_t *ctrl;
+    graph_t *ngraph;
+    idx_t *cvtxdist;
+
+    ctrl = SetupCtrl(PARMETIS_OP_KMETIS, NULL, 1, npes, NULL, NULL, comm); 
+    ctrl->CoarsenTo = 1;  /* Needed by SetUpGraph, otherwise we can FP errors */
+    cvtxdist = imalloc(npes+1, "cvtxdist");
+    for (i=0; i<npes; i++)
+      cvtxdist[i] = vtxdist[(i+1)*nparts_per_pe]-vtxdist[i*nparts_per_pe];
+    MAKECSR(i, npes, cvtxdist);
+
+    ngraph = SetupGraph(ctrl, 1, cvtxdist, xadj, NULL, NULL, adjncy, NULL, 0);
+    AllocateWSpace(ctrl, 0);
+
+    CommSetup(ctrl, ngraph);
+
+    WCOREPUSH;
+
+    cand = (i2kv_t *)gk_malloc(nvtxs*sizeof(i2kv_t), "cand");
+    for (i=0; i<nvtxs; i++) {
+      cand[i].key1 = where[i];
+      cand[i].key2 = vtype[i];
+      cand[i].val  = i;
+    }
+    i2kvsortii(nvtxs, cand);
+
+    newlabel = imalloc(nvtxs+ngraph->nrecv, "newlabel");
+    for (i=0; i<nvtxs; i++) 
+      newlabel[cand[i].val] = firstvtx+i;
+
+    /* Send the newlabel info to processors storing adjacent interface nodes */
+    CommInterfaceData(ctrl, ngraph, newlabel, newlabel+nvtxs);
+
+    WCOREPOP;
+
+    /* copy the nadjncy as this is renumbered */
+    icopy(xadj[nvtxs], ngraph->adjncy, adjncy);
+
+    FreeInitialGraphAndRemap(ngraph);
+    FreeCtrl(&ctrl);
+    gk_free((void **)&cvtxdist, LTERM);
+  }
+
 
   filename = gk_malloc(100+strlen(fstem), "DistDGL_WriteGraphs: filename");
   for (k=0; k<nparts_per_pe; k++) {
@@ -1016,29 +1161,19 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
     lnvtxs[k] = lnedges[k] = 0;
   }
 
-  nvtxs   = graph->nvtxs;
-  xadj    = graph->xadj;
-  adjncy  = graph->adjncy;
-  vtxdist = graph->vtxdist;
-  vmptr   = graph->vmptr;
-  emptr   = graph->emptr;
-  vmdata  = graph->vmdata;
-  emdata  = graph->emdata;
-  where   = graph->where;
-
-  firstvtx = vtxdist[mype*nparts_per_pe];
-
-  for (i=0; i<nvtxs; i++) {
+  for (ii=0; ii<nvtxs; ii++) {
+    i = cand[ii].val;
     ASSERT(where[i] >= mype*nparts_per_pe && where[i] < (mype+1)*nparts_per_pe);
     pnum = where[i]%nparts_per_pe;
     lnvtxs[pnum]++;
 
-    fprintf(nodefps[pnum], "1 %"PRIDX" %s\n", firstvtx+i, vmdata+vmptr[i]);
+    fprintf(nodefps[pnum], "%"PRIDX" %s\n", newlabel[i], vmdata+vmptr[i]);
 
     for (j=xadj[i]; j<xadj[i+1]; j++) {
       if (emptr[j] < emptr[j+1]) { /* real edge */
         lnedges[pnum]++;
-        fprintf(edgefps[pnum], "%"PRIDX" %"PRIDX" %s\n", firstvtx+i, adjncy[j], emdata+emptr[j]);
+        fprintf(edgefps[pnum], "%"PRIDX" %"PRIDX" %s\n", 
+            newlabel[i], newlabel[adjncy[j]], emdata+emptr[j]);
       }
     }
   }
@@ -1051,10 +1186,9 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
     gk_fclose(statfps[k]);
   }
 
-  gk_free((void **)&filename, LTERM);
+  gk_free((void **)&filename, &cand, &newlabel, LTERM);
 
 }
-
 
 
 /*************************************************************************/
@@ -1086,6 +1220,19 @@ void i2kvsorti(size_t n, i2kv_t *base)
   ((a)->key1 < (b)->key1 || \
    ((a)->key1 == (b)->key1 && (a)->key2 < (b)->key2) || \
     ((a)->key1 == (b)->key1 && (a)->key2 == (b)->key2 && (a)->val > (b)->val))
+  GK_MKQSORT(i2kv_t, base, n, ikeyval_lt);
+#undef ikeyval_lt
+}
+
+/*************************************************************************/
+/*! Sorts based on increasing <key1, key2>, and decreasing <val> */
+/*************************************************************************/
+void i2kvsortii(size_t n, i2kv_t *base)
+{
+#define ikeyval_lt(a, b) \
+  ((a)->key1 < (b)->key1 || \
+   ((a)->key1 == (b)->key1 && (a)->key2 < (b)->key2) || \
+    ((a)->key1 == (b)->key1 && (a)->key2 == (b)->key2 && (a)->val < (b)->val))
   GK_MKQSORT(i2kv_t, base, n, ikeyval_lt);
 #undef ikeyval_lt
 }
