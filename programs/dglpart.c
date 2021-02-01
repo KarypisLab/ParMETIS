@@ -101,7 +101,7 @@ int DistDGL_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm)
   / Partition the graph 
   /=======================================================================*/
   options[0] = 1;
-  options[1] = 15;
+  options[1] = 15 + PARMETIS_DBGLVL_TWOHOP + PARMETIS_DBGLVL_FAST;
   options[2] = 1;
   wgtflag = 2;
   numflag = 0;
@@ -110,7 +110,7 @@ int DistDGL_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm)
   nparts = npes*nparts_per_pe;
   part   = imalloc(graph->nvtxs, "DistDGL_GPart: part");
   tpwgts = rsmalloc(nparts*graph->ncon, 1.0/(real_t)nparts, "DistDGL_GPart: tpwgts");
-  ubvec  = rsmalloc(graph->ncon, 1.05, "DistDGL_GPart: unvec");
+  ubvec  = rsmalloc(graph->ncon, 1.02, "DistDGL_GPart: unvec");
 
   if (mype == 0)
     printf("\nDistDGL partitioning, ncon: %"PRIDX", nparts: %"PRIDX"\n", graph->ncon, nparts);
@@ -1084,7 +1084,7 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
   idx_t *xadj, *adjncy, *vtxdist, *vmptr, *emptr, *where, *vtype, *newlabel;
   char *filename, *vmdata, *emdata;
   FILE *nodefps[nparts_per_pe], *edgefps[nparts_per_pe], *statfps[nparts_per_pe];
-  idx_t lnvtxs[nparts_per_pe], lnedges[nparts_per_pe];
+  //idx_t lnvtxs[nparts_per_pe], lnedges[nparts_per_pe];
   i2kv_t *cand;
 
   idx_t npes, mype;
@@ -1156,22 +1156,24 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
     nodefps[k] = gk_fopen(filename, "w", "DistDGL_ReadGraph: nodes.txt");
     sprintf(filename, "p%03d-%s_edges.txt", mype*nparts_per_pe+k, fstem);
     edgefps[k] = gk_fopen(filename, "w", "DistDGL_ReadGraph: edges.txt");
+    /*
     sprintf(filename, "p%03d-%s_stats.txt", mype*nparts_per_pe+k, fstem);
     statfps[k] = gk_fopen(filename, "w", "DistDGL_ReadGraph: stats.txt");
     lnvtxs[k] = lnedges[k] = 0;
+    */
   }
 
   for (ii=0; ii<nvtxs; ii++) {
     i = cand[ii].val;
     ASSERT(where[i] >= mype*nparts_per_pe && where[i] < (mype+1)*nparts_per_pe);
     pnum = where[i]%nparts_per_pe;
-    lnvtxs[pnum]++;
+    //lnvtxs[pnum]++;
 
     fprintf(nodefps[pnum], "%"PRIDX" %s\n", newlabel[i], vmdata+vmptr[i]);
 
     for (j=xadj[i]; j<xadj[i+1]; j++) {
       if (emptr[j] < emptr[j+1]) { /* real edge */
-        lnedges[pnum]++;
+        //lnedges[pnum]++;
         fprintf(edgefps[pnum], "%"PRIDX" %"PRIDX" %s\n", 
             newlabel[i], newlabel[adjncy[j]], emdata+emptr[j]);
       }
@@ -1182,8 +1184,10 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
     gk_fclose(nodefps[k]);
     gk_fclose(edgefps[k]);
 
+    /*
     fprintf(statfps[k], "%"PRIDX" %"PRIDX" 1\n", lnvtxs[k], lnedges[k]);
     gk_fclose(statfps[k]);
+    */
   }
 
   gk_free((void **)&filename, &cand, &newlabel, LTERM);

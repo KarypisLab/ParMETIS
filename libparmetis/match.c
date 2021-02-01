@@ -148,7 +148,7 @@ void Match_Global(ctrl_t *ctrl, graph_t *graph)
           continue;
         }
 
-        /* Find a heavy-edge matching. */
+        /* Find a heavy-edge matching */
         for (j=xadj[i]; j<xadj[i+1]; j++) {
           k = adjncy[j];
           if (match[k] == UNMATCHED && myhome[k] == myhome[i]) { 
@@ -171,28 +171,31 @@ void Match_Global(ctrl_t *ctrl, graph_t *graph)
         }
 
         /* two-hop */
-        if (maxi == -1 && pass == NMATCH_PASSES-1) {
-          for (j=xadj[i]; j<xadj[i+1]; j++) {
-            if ((v = adjncy[j]) >= nvtxs)
-              continue;
-            for (jj=xadj[v]; jj<xadj[v+1]; jj++) {
-              if ((k = adjncy[jj]) >= nvtxs)
+        if (ctrl->dbglvl&PARMETIS_DBGLVL_TWOHOP) { 
+          if (maxi == -1 && pass == NMATCH_PASSES-1) {
+            for (j=xadj[i]; j<xadj[i+1]; j++) {
+              if ((v = adjncy[j]) >= nvtxs)
                 continue;
-              //myprintf(ctrl, "%d %d %d %d %d %d\n", i, j, v, jj, k);
-              if (k != i && match[k] == UNMATCHED) {
-                maxi = jj;
+              for (jj=xadj[v]; jj<xadj[v+1]; jj++) {
+                if ((k = adjncy[jj]) >= nvtxs)
+                  continue;
+                //myprintf(ctrl, "%d %d %d %d %d %d\n", i, j, v, jj, k);
+                if (k != i && match[k] == UNMATCHED) {
+                  maxi = jj;
+                  break;
+                }
+              }
+              if (maxi != -1) {
+                /*
+                myprintf(ctrl, "TH: %d %d %d %d %d\n", i, k,
+                    xadj[i+1]-xadj[i], xadj[v+1]-xadj[v], xadj[k+1]-xadj[k]);
+                */
                 break;
               }
             }
-            if (maxi != -1) {
-              /*
-              myprintf(ctrl, "TH: %d %d %d %d %d\n", i, k,
-                  xadj[i+1]-xadj[i], xadj[v+1]-xadj[v], xadj[k+1]-xadj[k]);
-              */
-              break;
-            }
           }
         }
+
 
         if (maxi != -1) {
           k = adjncy[maxi];

@@ -159,5 +159,9 @@ typedef enum {
 #define PARMETIS_DBGLVL_MATCHINFO   16     /* Show info on matching */
 #define PARMETIS_DBGLVL_RMOVEINFO   32     /* Show info on communication during folding */
 #define PARMETIS_DBGLVL_REMAP       64     /* Determines if remapping will take place */
+#define PARMETIS_DBGLVL_TWOHOP      128    /* Performs a 2-hop matching */
+#define PARMETIS_DBGLVL_DROPEDGES   256    /* Drop edges during coarsening */
+#define PARMETIS_DBGLVL_FAST        512    /* Reduces #trials for various steps */
+
 
 #endif 
