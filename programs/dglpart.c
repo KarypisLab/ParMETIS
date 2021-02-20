@@ -10,7 +10,7 @@
 
 #include <parmetisbin.h>
 
-#define CHUNKSIZE (1<<14)
+#define CHUNKSIZE (1<<15)
 
 /* The following is to perform a cyclic distribution of the input vertex IDs
    in order to balance the adjancency lists during the partitioning computations */
@@ -653,10 +653,11 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     idx_t firstvtx, lastvtx;
 
     chunksize = CHUNKSIZE;
+    nchunks = 2*gnedges/chunksize;
     nlinesread = 0;
     if (mype == 0) {
       sprintf(filename, "%s_edges.txt", fstem);
-      fsize = 3*gk_getfsize(filename)/(2*npes);  /* give it a 1.5x xtra space */
+      fsize = 2*gk_getfsize(filename)/nchunks;  /* give it a 2x xtra space */
       fpin = gk_fopen(filename, "r", "DistDGL_ReadGraph: edges.txt");
   
       coo_buffers_cpos  = imalloc(npes, "coo_buffers_cpos");
@@ -672,7 +673,6 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     }
   
     /* allocate memory for the chunks that will be collected by each PE */
-    nchunks = 2*gnedges/chunksize;
     coo_chunks_len  = imalloc(nchunks, "coo_chunks_len");
     meta_chunks_len = imalloc(nchunks, "meta_chunks_len");
     coo_chunks  = (i2kv_t **)gk_malloc(nchunks*sizeof(i2kv_t *), "coo_chunks");
@@ -1152,9 +1152,9 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
 
   filename = gk_malloc(100+strlen(fstem), "DistDGL_WriteGraphs: filename");
   for (k=0; k<nparts_per_pe; k++) {
-    sprintf(filename, "p%03d-%s_nodes.txt", mype*nparts_per_pe+k, fstem);
+    sprintf(filename, "p%03"PRIDX"-%s_nodes.txt", mype*nparts_per_pe+k, fstem);
     nodefps[k] = gk_fopen(filename, "w", "DistDGL_ReadGraph: nodes.txt");
-    sprintf(filename, "p%03d-%s_edges.txt", mype*nparts_per_pe+k, fstem);
+    sprintf(filename, "p%03"PRIDX"-%s_edges.txt", mype*nparts_per_pe+k, fstem);
     edgefps[k] = gk_fopen(filename, "w", "DistDGL_ReadGraph: edges.txt");
     /*
     sprintf(filename, "p%03d-%s_stats.txt", mype*nparts_per_pe+k, fstem);

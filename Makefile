@@ -1,12 +1,12 @@
 # Configuration options.
 cc         = mpicc
-db         = not-set
+gdb        = not-set
 assert     = not-set
 assert2    = not-set
 debug      = not-set
 openmp     = not-set
-prefix     = ~/local
 shared     = not-set
+prefix     = ~/local
 gklib_path = ~/local
 metis_path = ~/local
 
