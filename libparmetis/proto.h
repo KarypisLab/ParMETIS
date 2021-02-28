@@ -32,6 +32,7 @@ void Match_Global(ctrl_t *, graph_t *);
 void Match_Local(ctrl_t *, graph_t *);
 void CreateCoarseGraph_Global(ctrl_t *, graph_t *, idx_t);
 void CreateCoarseGraph_Local(ctrl_t *, graph_t *, idx_t);
+void DropEdges(ctrl_t *ctrl, graph_t *graph);
 
 
 /* initpart.c */

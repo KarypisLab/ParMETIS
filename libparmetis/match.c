@@ -361,6 +361,9 @@ void Match_Global(ctrl_t *ctrl, graph_t *graph)
 
   CreateCoarseGraph_Global(ctrl, graph, cnvtxs);
 
+  if (ctrl->dbglvl&PARMETIS_DBGLVL_DROPEDGES) 
+    DropEdges(ctrl, graph->coarser);
+
   IFSET(ctrl->dbglvl, DBG_TIME, gkMPI_Barrier(ctrl->comm));
   IFSET(ctrl->dbglvl, DBG_TIME, stoptimer(ctrl->ContractTmr));
 }
@@ -1083,7 +1086,7 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
   /* Update the cmap of the locally stored vertices that will go away. 
    * The remote processor assigned cmap for them */
   for (i=0; i<nvtxs; i++) {
-    if (match[i] < KEEP_BIT) { /* Only vertices that go away satisfy this*/
+    if (match[i] < KEEP_BIT) { /* Only vertices that go away satisfy this */
       cmap[i] = cmap[nvtxs+BSearch(graph->nrecv, recvind, match[i])];
     }
   }
@@ -1295,7 +1298,7 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
   /*************************************************************
   * Finally, create the coarser graph
   **************************************************************/
-  /* Allocate memory for the coarser graph, and fire up coarsening */
+  /* Allocate memory for the coarser graph, and start creating the coarse graph */
   cxadj   = cgraph->xadj  = imalloc(cnvtxs+1, "CreateCoarserGraph: cxadj");
   cvwgt   = cgraph->vwgt  = imalloc(cnvtxs*ncon, "CreateCoarserGraph: cvwgt");
   cnvwgt  = cgraph->nvwgt = rmalloc(cnvtxs*ncon, "CreateCoarserGraph: cnvwgt");
@@ -1338,7 +1341,6 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
       for (maxclen*=2, htsize=1; htsize<maxclen; htsize*=2);
       mask = htsize-1;
       if (maxhtsize < htsize) {
-        //myprintf(ctrl, "htsize: %"PRIDX" maxhtsize: %"PRIDX"\n", htsize, maxhtsize);
         maxhtsize = 2*htsize;
         gk_free((void **)&htable, LTERM);
         htable = ismalloc(maxhtsize, -1, "htable");
@@ -1359,8 +1361,6 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
       /* Collapse the v (i) vertex first */
       for (j=xadj[i]; j<xadj[i+1]; j++) {
         k = cmap[adjncy[j]];
-        if (k < 0)
-          printf("k=%d\n", (int)k);
         if (k != cfirstvtx+cnvtxs) {  /* If this is not an internal edge */
           for (kk=k&mask; htable[kk]!=-1 && cadjncy[htable[kk]]!=k; kk=((kk+1)&mask));
           if ((m = htable[kk]) == -1) { /* Seeing this for first time */
@@ -1401,7 +1401,6 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
         }
         else { /* Remote vertex */
           u = perm[BSearch(graph->nrecv, recvind, u)];
-
           for (h=0; h<ncon; h++)
             /* Remember that the +1 stores the vertex weight */
             cvwgt[cnvtxs*ncon+h] += rgraph[(u+1)+h];
@@ -1689,3 +1688,69 @@ void CreateCoarseGraph_Local(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
 
 }
 
+
+/*************************************************************************/
+/*! This function drops some of the edges of the graph to reduce memory
+    consumption. */
+/*************************************************************************/
+void DropEdges(ctrl_t *ctrl, graph_t *graph)
+{
+  idx_t i, ii, j, k, istart, iend, nvtxs, maxdegree;
+  idx_t *xadj, *adjncy, *adjwgt;
+  idx_t *noise, *medianwgts, *keys;
+
+  WCOREPUSH;
+
+  CommSetup(ctrl, graph);
+
+  nvtxs  = graph->nvtxs;
+  xadj   = graph->xadj;
+  adjncy = graph->adjncy;
+  adjwgt = graph->adjwgt;
+
+
+  maxdegree = xadj[1];
+  for (i=1; i<nvtxs; i++) 
+    maxdegree = gk_max(maxdegree, xadj[i+1]-xadj[i]);
+
+  medianwgts = iwspacemalloc(ctrl, nvtxs+graph->nrecv);
+  noise      = iwspacemalloc(ctrl, nvtxs+graph->nrecv);
+  keys       = iwspacemalloc(ctrl, maxdegree+1);
+
+  for (i=0; i<nvtxs; i++)
+    noise[i] = RandomInRange(128);
+  CommInterfaceData(ctrl, graph, noise, noise+nvtxs);
+
+  /* determine the median weight of each adjacency list */
+  for (i=0; i<nvtxs; i++) {
+    istart = xadj[i];
+    iend   = xadj[i+1];
+    for (k=0, j=istart; j<iend; j++, k++) 
+      keys[k] = (adjwgt[j]<<8) + noise[i] + noise[adjncy[j]];
+
+    isortd(k, keys);
+    medianwgts[i] = keys[k>>1];
+  }
+  CommInterfaceData(ctrl, graph, medianwgts, medianwgts+nvtxs);
+
+  /* compact the adjacency structure of the coarser graph to keep only +ve edges */
+  k = 0;
+  for (i=0; i<nvtxs; i++) {
+    istart = xadj[i];
+    iend   = xadj[i+1];
+    for (j=istart; j<iend; j++) {
+      ii = adjncy[j];
+      if ((adjwgt[j]<<8) + noise[i] + noise[ii] >= gk_min(medianwgts[i], medianwgts[ii])) {
+        adjncy[k]   = adjncy[j];
+        adjwgt[k++] = adjwgt[j];
+      }
+    }
+    xadj[i] = k;
+  }
+  SHIFTCSR(j, nvtxs, xadj);
+
+  FreeNonGraphFields(graph);
+  
+  WCOREPUSH;
+
+}
