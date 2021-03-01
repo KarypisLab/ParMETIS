@@ -1120,7 +1120,6 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
   idx_t *xadj, *adjncy, *vtxdist, *vmptr, *emptr, *where, *vtype, *newlabel;
   char *filename, *vmdata, *emdata;
   FILE *nodefps[nparts_per_pe], *edgefps[nparts_per_pe], *statfps[nparts_per_pe];
-  //idx_t lnvtxs[nparts_per_pe], lnedges[nparts_per_pe];
   i2kv_t *cand;
 
   idx_t npes, mype;
@@ -1140,11 +1139,11 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
 
   firstvtx = vtxdist[mype*nparts_per_pe];
 
-
   {
     ctrl_t *ctrl;
     graph_t *ngraph;
     idx_t *cvtxdist;
+    idx_t *nadjncy;
 
     ctrl = SetupCtrl(PARMETIS_OP_KMETIS, NULL, 1, npes, NULL, NULL, comm); 
     ctrl->CoarsenTo = 1;  /* Needed by SetUpGraph, otherwise we can FP errors */
@@ -1153,7 +1152,13 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
       cvtxdist[i] = vtxdist[(i+1)*nparts_per_pe]-vtxdist[i*nparts_per_pe];
     MAKECSR(i, npes, cvtxdist);
 
-    ngraph = SetupGraph(ctrl, 1, cvtxdist, xadj, NULL, NULL, adjncy, NULL, 0);
+    /* allocate memory and copy the adjncy into nadjncy, so that the 
+       renumbering will not change the newlabel mapping that you are
+       doing bellow */
+    nadjncy = imalloc(xadj[nvtxs], "nadjncy");
+    icopy(xadj[nvtxs], adjncy, nadjncy);
+
+    ngraph = SetupGraph(ctrl, 1, cvtxdist, xadj, NULL, NULL, nadjncy, NULL, 0);
     AllocateWSpace(ctrl, 0);
 
     CommSetup(ctrl, ngraph);
@@ -1182,7 +1187,7 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
 
     FreeInitialGraphAndRemap(ngraph);
     FreeCtrl(&ctrl);
-    gk_free((void **)&cvtxdist, LTERM);
+    gk_free((void **)&cvtxdist, &nadjncy, LTERM);
   }
 
 
@@ -1192,24 +1197,17 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
     nodefps[k] = gk_fopen(filename, "w", "DistDGL_ReadGraph: nodes.txt");
     sprintf(filename, "p%03"PRIDX"-%s_edges.txt", mype*nparts_per_pe+k, fstem);
     edgefps[k] = gk_fopen(filename, "w", "DistDGL_ReadGraph: edges.txt");
-    /*
-    sprintf(filename, "p%03d-%s_stats.txt", mype*nparts_per_pe+k, fstem);
-    statfps[k] = gk_fopen(filename, "w", "DistDGL_ReadGraph: stats.txt");
-    lnvtxs[k] = lnedges[k] = 0;
-    */
   }
 
   for (ii=0; ii<nvtxs; ii++) {
     i = cand[ii].val;
     ASSERT(where[i] >= mype*nparts_per_pe && where[i] < (mype+1)*nparts_per_pe);
     pnum = where[i]%nparts_per_pe;
-    //lnvtxs[pnum]++;
 
     fprintf(nodefps[pnum], "%"PRIDX" %s\n", newlabel[i], vmdata+vmptr[i]);
 
     for (j=xadj[i]; j<xadj[i+1]; j++) {
       if (emptr[j] < emptr[j+1]) { /* real edge */
-        //lnedges[pnum]++;
         fprintf(edgefps[pnum], "%"PRIDX" %"PRIDX" %s\n", 
             newlabel[i], newlabel[adjncy[j]], emdata+emptr[j]);
       }
@@ -1219,11 +1217,6 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
   for (k=0; k<nparts_per_pe; k++) {
     gk_fclose(nodefps[k]);
     gk_fclose(edgefps[k]);
-
-    /*
-    fprintf(statfps[k], "%"PRIDX" %"PRIDX" 1\n", lnvtxs[k], lnedges[k]);
-    gk_fclose(statfps[k]);
-    */
   }
 
   gk_free((void **)&filename, &cand, &newlabel, LTERM);
