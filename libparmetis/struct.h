@@ -141,6 +141,7 @@ typedef struct graph_t {
   idx_t *sepind;		/* The indices of the vertices in the separator */
 
   /* Vertex/edge metadata information use by DistDGL */
+  size_t emdata_size, vmdata_size;
   idx_t *vmptr, *emptr;
   char *vmdata, *emdata;
   idx_t *vtype;
