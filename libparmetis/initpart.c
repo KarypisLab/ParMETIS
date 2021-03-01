@@ -75,7 +75,7 @@ void InitPartition(ctrl_t *ctrl, graph_t *graph)
   if (ctrl->fast) {
     moptions[METIS_OPTION_NITER] = 1;
     moptions[METIS_OPTION_NIPARTS] = 1;
-    //moptions[METIS_OPTION_DROPEDGES] = 1;
+    moptions[METIS_OPTION_DROPEDGES] = 1;
     moptions[METIS_OPTION_ONDISK] = 1;
     //moptions[METIS_OPTION_NO2HOP] = 0;
   }
