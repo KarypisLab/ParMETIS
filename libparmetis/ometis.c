@@ -386,7 +386,11 @@ void Order_Partition(ctrl_t *ctrl, graph_t *graph, idx_t *nlevels, idx_t clevel)
         errexit("Unknown mtype of %"PRIDX"\n", ctrl->mtype);
     }
 
+    graph_WriteToDisk(ctrl, graph);
+
     Order_Partition(ctrl, graph->coarser, nlevels, clevel+1);
+
+    graph_ReadFromDisk(ctrl, graph);
 
     ProjectPartition(ctrl, graph);
     AllocateNodePartitionParams(ctrl, graph);

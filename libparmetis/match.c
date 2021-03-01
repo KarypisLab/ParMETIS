@@ -171,7 +171,7 @@ void Match_Global(ctrl_t *ctrl, graph_t *graph)
         }
 
         /* two-hop */
-        if (ctrl->dbglvl&PARMETIS_DBGLVL_TWOHOP) { 
+        if (ctrl->twohop) { 
           if (maxi == -1 && pass == NMATCH_PASSES-1) {
             for (j=xadj[i]; j<xadj[i+1]; j++) {
               if ((v = adjncy[j]) >= nvtxs)
@@ -361,7 +361,7 @@ void Match_Global(ctrl_t *ctrl, graph_t *graph)
 
   CreateCoarseGraph_Global(ctrl, graph, cnvtxs);
 
-  if (ctrl->dbglvl&PARMETIS_DBGLVL_DROPEDGES) 
+  if (ctrl->dropedges) 
     DropEdges(ctrl, graph->coarser);
 
   IFSET(ctrl->dbglvl, DBG_TIME, gkMPI_Barrier(ctrl->comm));
@@ -813,7 +813,7 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
   }
   if (where != NULL)
     cwhere = cgraph->where = imalloc(cnvtxs, "CreateCoarserGraph: cwhere");
-  if (ctrl->dbglvl&PARMETIS_DBGLVL_DROPEDGES)
+  if (ctrl->dropedges)
     cgraph->unmatched = imalloc(cnvtxs, "CreateCoarserGraph: cgraph->unmatched");
 
   /* these are just upper bound estimates for now */
@@ -836,7 +836,7 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
       if (u>=firstvtx && u<lastvtx && v > u) 
         continue;  /* I have already collapsed it as (u,v) */
 
-      if (ctrl->dbglvl&PARMETIS_DBGLVL_DROPEDGES) 
+      if (ctrl->dropedges) 
         cgraph->unmatched[cnvtxs] = (v == u ? 1 : 0); 
 
       /* determine the maximum length of the combined adjacency list 

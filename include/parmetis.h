@@ -162,6 +162,7 @@ typedef enum {
 #define PARMETIS_DBGLVL_TWOHOP      128    /* Performs a 2-hop matching */
 #define PARMETIS_DBGLVL_DROPEDGES   256    /* Drop edges during coarsening */
 #define PARMETIS_DBGLVL_FAST        512    /* Reduces #trials for various steps */
+#define PARMETIS_DBGLVL_ONDISK     1024    /* Saves non-active graphs to disk */
 
 
 #endif 

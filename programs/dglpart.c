@@ -101,7 +101,7 @@ int DistDGL_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm)
   / Partition the graph 
   /=======================================================================*/
   options[0] = 1;
-  options[1] = 15 + PARMETIS_DBGLVL_TWOHOP + PARMETIS_DBGLVL_FAST + PARMETIS_DBGLVL_DROPEDGES;
+  options[1] = 15 + (PARMETIS_DBGLVL_TWOHOP|PARMETIS_DBGLVL_FAST|PARMETIS_DBGLVL_DROPEDGES|PARMETIS_DBGLVL_ONDISK);
   options[2] = 1;
   wgtflag = 2;
   numflag = 0;
@@ -179,13 +179,13 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
     size_t size;
     char filein[256];
 
-    sprintf(filein, "emdata-%d-%"PRIDX".bin", getpid(), mype);
+    sprintf(filein, "emdata-%d-%"PRIDX".bin", (int)getpid(), mype);
     ograph->emdata = gk_creadfilebin(filein, &size);
     if (size != ograph->emdata_size)
       printf("[%4"PRIDX"] size: %zu != %zu\n", mype, size, ograph->emdata_size);
     gk_rmpath(filein);
     
-    sprintf(filein, "vmdata-%d-%"PRIDX".bin", getpid(), mype);
+    sprintf(filein, "vmdata-%d-%"PRIDX".bin", (int)getpid(), mype);
     ograph->vmdata = gk_creadfilebin(filein, &size);
     if (size != ograph->vmdata_size)
       printf("[%4"PRIDX"] size: %zu != %zu\n", mype, size, ograph->vmdata_size);
@@ -890,7 +890,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     /* save the emdata into a file for now */
     {
       char fileout[256];
-      sprintf(fileout, "emdata-%d-%"PRIDX".bin", getpid(), mype);
+      sprintf(fileout, "emdata-%d-%"PRIDX".bin", (int)getpid(), mype);
       gk_cwritefilebin(fileout, graph->emdata_size, emdata);
       gk_free((void **)&graph->emdata, LTERM);
     }
@@ -1067,7 +1067,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     /* save the vmdata into a file for now */
     {
       char fileout[256];
-      sprintf(fileout, "vmdata-%d-%"PRIDX".bin", getpid(), mype);
+      sprintf(fileout, "vmdata-%d-%"PRIDX".bin", (int)getpid(), mype);
       gk_cwritefilebin(fileout, graph->vmdata_size, vmdata);
       gk_free((void **)&graph->vmdata, LTERM);
     }

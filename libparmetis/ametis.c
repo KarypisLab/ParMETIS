@@ -197,7 +197,11 @@ void Adaptive_Partition(ctrl_t *ctrl, graph_t *graph)
         break;
     }
 
+    graph_WriteToDisk(ctrl, graph);
+
     Adaptive_Partition(ctrl, graph->coarser);
+
+    graph_ReadFromDisk(ctrl, graph);
 
     /********************************/
     /* project partition and refine */

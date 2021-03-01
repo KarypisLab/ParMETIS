@@ -188,7 +188,11 @@ void Global_Partition(ctrl_t *ctrl, graph_t *graph)
   else {
     Match_Global(ctrl, graph);
 
+    graph_WriteToDisk(ctrl, graph);
+
     Global_Partition(ctrl, graph->coarser);
+
+    graph_ReadFromDisk(ctrl, graph);
 
     ProjectPartition(ctrl, graph);
 

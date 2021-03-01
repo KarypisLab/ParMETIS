@@ -84,6 +84,8 @@ typedef struct graph_t {
   idx_t *home;		/* The initial partition of the vertex */
 
   /* used for not freeing application supplied arrays */
+  idx_t free_xadj;
+  idx_t free_adjncy;
   idx_t free_vwgt;
   idx_t free_adjwgt;
   idx_t free_vsize;
@@ -135,6 +137,7 @@ typedef struct graph_t {
   real_t *lnpwgts, *gnpwgts;
   ckrinfo_t *ckrinfo;
 
+
   /* Node refinement information */
   idx_t nsep;  			/* The number of vertices in the separator */
   NRInfoType *nrinfo;
@@ -145,6 +148,12 @@ typedef struct graph_t {
   idx_t *vmptr, *emptr;
   char *vmdata, *emdata;
   idx_t *vtype;
+
+
+  /* Various fields for out-of-core processing */
+  int gID;
+  int ondisk;
+
 
   idx_t lmincut, mincut;
 
@@ -168,16 +177,16 @@ typedef double timer;
 **************************************************************************/
 typedef struct ctrl_t {
   pmoptype_et optype;           /*!< The operation being performed */
-  idx_t mype, npes;		/* Info about the parallel system */
+  idx_t mype, npes;		/*!< Info about the parallel system */
   idx_t ncon;                   /*!< The number of balancing constraints */ 
-  idx_t CoarsenTo;		/* The # of vertices in the coarsest graph */
-  idx_t dbglvl;			/* Controls the debuging output of the program */
-  idx_t nparts;			/* The number of partitions */
-  idx_t foldf;			/* What is the folding factor */
-  idx_t mtype;                  /* The matching type */
-  idx_t ipart;			/* The initial partitioning type */
-  idx_t rtype;                  /* The refinement type */
-  idx_t p_nseps;                /* The number of separators to compute at each 
+  idx_t CoarsenTo;		/*!< The # of vertices in the coarsest graph */
+  idx_t dbglvl;			/*!< Controls the debuging output of the program */
+  idx_t nparts;			/*!< The number of partitions */
+  idx_t foldf;			/*!< What is the folding factor */
+  idx_t mtype;                  /*!< The matching type */
+  idx_t ipart;			/*!< The initial partitioning type */
+  idx_t rtype;                  /*!< The refinement type */
+  idx_t p_nseps;                /*!< The number of separators to compute at each 
                                    parallel bisection */
   idx_t s_nseps;                /* The number of separators to compute at each 
                                    serial bisection */
@@ -187,6 +196,11 @@ typedef struct ctrl_t {
   real_t *tpwgts;		/* Target subdomain weights */
   real_t *invtvwgts;            /* Per-constraint 1/total vertex weight */
   real_t *ubvec;                /* Per-constraint unbalance factor */
+
+  idx_t dropedges;
+  idx_t twohop;
+  idx_t fast;
+
 
   idx_t partType;
   idx_t ps_relation;
@@ -221,6 +235,9 @@ typedef struct ctrl_t {
                              The size and current position of the pool is controlled
                              by nnbrs & cnbrs */
 
+  /* ondisk-related info */
+  idx_t ondisk;
+  pid_t pid;            /*!< The pid of the running process */
 
   /* Various Timers */
   timer TotalTmr, InitPartTmr, MatchTmr, ContractTmr, CoarsenTmr, RefTmr,

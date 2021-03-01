@@ -41,6 +41,8 @@ graph_t *SetupGraph(ctrl_t *ctrl, idx_t ncon, idx_t *vtxdist, idx_t *xadj,
   graph->adjwgt  = adjwgt;
   graph->vtxdist = vtxdist;
 
+  graph->free_xadj   = 0;
+  graph->free_adjncy = 0;
 
   /* allocate memory for weight arrays if not provided */
   if ((wgtflag&2) == 0 || vwgt == NULL) 
@@ -159,7 +161,7 @@ void InitGraph(graph_t *graph)
 
   graph->coarser = graph->finer = NULL;
 
-  graph->free_vwgt = graph->free_adjwgt = graph->free_vsize = 1;
+  graph->free_xadj = graph->free_adjncy = graph->free_vwgt = graph->free_adjwgt = graph->free_vsize = 1;
 }
 
 
@@ -326,3 +328,169 @@ void FreeInitialGraphAndRemap(graph_t *graph)
 
   gk_free((void **)&graph, LTERM);
 }
+
+
+/*************************************************************************/
+/*! This function writes the key contents of the graph on disk and frees
+    the associated memory */
+/*************************************************************************/
+void graph_WriteToDisk(ctrl_t *ctrl, graph_t *graph) 
+{
+  idx_t nvtxs, ncon, *xadj;
+  static int gID = 1;
+  char outfile[1024];
+  FILE *fpout;
+
+  if (ctrl->ondisk == 0)
+    return;
+
+  if (sizeof(idx_t)*(graph->nvtxs*(graph->ncon+1)+2*graph->xadj[graph->nvtxs]) < 128*1024*1024)
+    return;
+
+  if (graph->gID > 0) {
+    sprintf(outfile, "parmetis%d.%d.%d", (int)ctrl->mype, (int)ctrl->pid, graph->gID);
+    gk_rmpath(outfile);
+  }
+
+  graph->gID = gID++;
+  sprintf(outfile, "parmetis%d.%d.%d", (int)ctrl->mype, (int)ctrl->pid, graph->gID);
+
+  if ((fpout = fopen(outfile, "wb")) == NULL) 
+    return;
+
+  nvtxs = graph->nvtxs;
+  ncon  = graph->ncon;
+  xadj  = graph->xadj;
+
+  if (graph->free_xadj) {
+    if (fwrite(graph->xadj, sizeof(idx_t), nvtxs+1, fpout) != nvtxs+1)
+      goto error;
+  }
+  if (graph->free_vwgt) {
+    if (fwrite(graph->vwgt, sizeof(idx_t), nvtxs*ncon, fpout) != nvtxs*ncon)
+      goto error;
+  }
+  if (fwrite(graph->nvwgt, sizeof(real_t), nvtxs*ncon, fpout) != nvtxs*ncon)
+    goto error;
+
+  if (graph->free_adjncy) {
+    if (fwrite(graph->adjncy, sizeof(idx_t), xadj[nvtxs], fpout) != xadj[nvtxs])
+      goto error;
+  }
+  if (graph->free_adjwgt) {
+    if (fwrite(graph->adjwgt, sizeof(idx_t), xadj[nvtxs], fpout) != xadj[nvtxs])
+      goto error;
+  }
+
+  if (ctrl->optype == PARMETIS_OP_AMETIS || ctrl->optype == PARMETIS_OP_RMETIS) { 
+    if (graph->free_vsize) {
+      if (fwrite(graph->vsize, sizeof(idx_t), nvtxs, fpout) != nvtxs)
+        goto error;
+    }
+
+    if (fwrite(graph->home, sizeof(idx_t), nvtxs, fpout) != nvtxs)
+      goto error;
+  }
+
+  fclose(fpout);
+
+  if (graph->free_xadj)
+    gk_free((void **)&graph->xadj, LTERM);
+  if (graph->free_vwgt)
+    gk_free((void **)&graph->vwgt, LTERM);
+  gk_free((void **)&graph->nvwgt, LTERM);
+  if (graph->free_vsize)
+    gk_free((void **)&graph->vsize, LTERM);
+  if (graph->free_adjncy)
+    gk_free((void **)&graph->adjncy, LTERM);
+  if (graph->free_adjwgt)
+    gk_free((void **)&graph->adjwgt, LTERM);
+  gk_free((void **)&graph->home, LTERM);
+
+  graph->ondisk = 1;
+  return;
+
+error:
+  printf("Failed on writing %s\n", outfile);
+  fclose(fpout);
+  gk_rmpath(outfile);
+  graph->ondisk = 0;
+}
+
+
+/*************************************************************************/
+/*! This function reads the key contents of a graph from the disk */
+/*************************************************************************/
+void graph_ReadFromDisk(ctrl_t *ctrl, graph_t *graph) 
+{
+  idx_t nvtxs, ncon, *xadj;
+  char infile[1024];
+  FILE *fpin;
+
+  if (graph->ondisk == 0)
+    return;  /* this graph is not on the disk */
+
+  sprintf(infile, "parmetis%d.%d.%d", (int)ctrl->mype, (int)ctrl->pid, graph->gID);
+
+  if ((fpin = fopen(infile, "rb")) == NULL) 
+    return;
+
+  nvtxs = graph->nvtxs;
+  ncon  = graph->ncon;
+
+  if (graph->free_xadj) {
+    graph->xadj = imalloc(nvtxs+1, "graph_ReadFromDisk: xadj");
+    if (fread(graph->xadj, sizeof(idx_t), nvtxs+1, fpin) != nvtxs+1)
+      goto error;
+  }
+  xadj = graph->xadj;
+
+  if (graph->free_vwgt) {
+    graph->vwgt = imalloc(nvtxs*ncon, "graph_ReadFromDisk: vwgt");
+    if (fread(graph->vwgt, sizeof(idx_t), nvtxs*ncon, fpin) != nvtxs*ncon)
+      goto error;
+  }
+
+  graph->nvwgt = rmalloc(nvtxs*ncon, "graph_ReadFromDisk: nvwgt");
+  if (fread(graph->nvwgt, sizeof(real_t), nvtxs*ncon, fpin) != nvtxs*ncon)
+    goto error;
+
+  if (graph->free_adjncy) {
+    graph->adjncy = imalloc(xadj[nvtxs], "graph_ReadFromDisk: adjncy");
+    if (fread(graph->adjncy, sizeof(idx_t), xadj[nvtxs], fpin) != xadj[nvtxs])
+      goto error;
+  }
+
+  if (graph->free_adjwgt) {
+    graph->adjwgt = imalloc(xadj[nvtxs], "graph_ReadFromDisk: adjwgt");
+    if (fread(graph->adjwgt, sizeof(idx_t), xadj[nvtxs], fpin) != xadj[nvtxs])
+      goto error;
+  }
+
+  if (ctrl->optype == PARMETIS_OP_AMETIS || ctrl->optype == PARMETIS_OP_RMETIS) { 
+    if (graph->free_vsize) {
+      graph->vsize = imalloc(nvtxs, "graph_ReadFromDisk: vsize");
+      if (fread(graph->vsize, sizeof(idx_t), nvtxs, fpin) != nvtxs)
+        goto error;
+    }
+
+    graph->home = imalloc(nvtxs, "graph_ReadFromDisk: vsize");
+    if (fread(graph->home, sizeof(idx_t), nvtxs, fpin) != nvtxs)
+      goto error;
+  }
+
+  fclose(fpin);
+  //printf("ondisk: deleting %s\n", infile);
+  gk_rmpath(infile);
+
+  graph->gID    = 0;
+  graph->ondisk = 0;
+  return;
+
+error:
+  fclose(fpin);
+  gk_rmpath(infile);
+  graph->ondisk = 0;
+  gk_errexit(SIGERR, "Failed to restore graph %s from the disk.\n", infile);
+}
+
