@@ -267,6 +267,7 @@ void InitGraph(graph_t *);
 void FreeGraph(graph_t *graph);
 void FreeNonGraphFields(graph_t *graph);
 void FreeNonGraphNonSetupFields(graph_t *graph);
+void FreeCommSetupFields(graph_t *graph);
 void FreeInitialGraphAndRemap(graph_t *graph);
 void ChangeNumbering(idx_t *, idx_t *, idx_t *, idx_t *, idx_t, idx_t, idx_t);
 void ChangeNumberingMesh(idx_t *elmdist, idx_t *eptr, idx_t *eind,

@@ -101,7 +101,7 @@ int DistDGL_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm)
   / Partition the graph 
   /=======================================================================*/
   options[0] = 1;
-  options[1] = 15 + PARMETIS_DBGLVL_TWOHOP + PARMETIS_DBGLVL_FAST;
+  options[1] = 15 + 32 + PARMETIS_DBGLVL_TWOHOP + PARMETIS_DBGLVL_FAST + PARMETIS_DBGLVL_DROPEDGES;
   options[2] = 1;
   wgtflag = 2;
   numflag = 0;

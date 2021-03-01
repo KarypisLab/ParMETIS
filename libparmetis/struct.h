@@ -92,6 +92,9 @@ typedef struct graph_t {
   idx_t *match;
   idx_t *cmap;
 
+  /* Dropedges */
+  idx_t *unmatched;  /* used to mark the coarse vertices that resulted from match[u]=u */
+
   /* Used during initial partitioning */
   idx_t *label;
 

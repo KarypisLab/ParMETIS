@@ -268,6 +268,29 @@ void FreeNonGraphNonSetupFields(graph_t *graph)
 
 
 /*************************************************************************/
+/*! This function deallocates the fields created by the CommSetup() */
+/*************************************************************************/
+void FreeCommSetupFields(graph_t *graph) 
+{
+
+  gk_free(
+      /* Communication/Setup fields */
+      (void **)&graph->lperm, 
+      (void **)&graph->peind, 
+      (void **)&graph->sendptr, 
+      (void **)&graph->sendind, 
+      (void **)&graph->recvptr, 
+      (void **)&graph->recvind, 
+      (void **)&graph->imap,
+      (void **)&graph->pexadj,
+      (void **)&graph->peadjncy,
+      (void **)&graph->peadjloc,
+
+      LTERM);
+}
+
+
+/*************************************************************************/
 /*! This function frees any memory allocated for storing the initial graph
     and performs the local to global (i.e., original numbering of the
     adjacency list)
