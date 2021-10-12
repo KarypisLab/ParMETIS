@@ -177,9 +177,70 @@ int gkMPI_Allgatherv(void *sendbuf, idx_t sendcount, MPI_Datatype sendtype,
 #else
   idx_t i; 
   int status, npes, *lrecvcounts, *lrdispls;
+  int exceed_max_int;
+  idx_t *child_recvcounts, *child_rdispls;
+  idx_t *child_recvbuf;
+  idx_t child_sendcount;
+  int mype;
 
   MPI_Comm_size(comm, &npes);
+  MPI_Comm_rank(comm, &mype);
+ 
+  exceed_max_int = 0; 
+  for (i=0; i<npes; i++) {
+    if (recvcounts[i] >= INT_MAX || rdispls[i] >= INT_MAX) {
+        exceed_max_int = 1;
+        break;
+    }
+  }
 
+  if (exceed_max_int || sendcount >= INT_MAX) {
+    // Length of message is larger than int, we use divide and conquer
+    // Take care of idx_t is 64bit long
+ 
+    child_recvcounts = gk_i64malloc(npes, "child_recvcounts");
+    child_rdispls    = gk_i64malloc(npes+1, "child_displs");
+    child_recvbuf = gk_i64malloc((recvcounts[npes-1]+rdispls[npes-1])/2+2, "child_recvbuf");
+    
+    // Allgather first half
+    for (i=0; i<npes; i++) {
+      child_recvcounts[i] = recvcounts[i]/2;
+    }
+    for (child_rdispls[0]=0, i=1; i<npes+1; i++) {
+      child_rdispls[i] = child_rdispls[i-1] + child_recvcounts[i-1];
+    }
+    child_sendcount = sendcount/2;
+    
+    status = gkMPI_Allgatherv(sendbuf, child_sendcount,
+      sendtype, child_recvbuf, child_recvcounts, child_rdispls, recvtype, comm);
+ 
+    for (i=0; i<npes; i++) {
+      memcpy((idx_t*)recvbuf+rdispls[i],
+        (idx_t*)child_recvbuf+child_rdispls[i], sizeof(idx_t)*child_recvcounts[i]);
+    }
+ 
+    // Allgather last half
+    for (i=0; i<npes; i++) {
+      child_recvcounts[i] += recvcounts[i]%2;
+    }
+    for (child_rdispls[0]=0,i=1; i<npes+1; i++) {
+      child_rdispls[i] = child_rdispls[i-1]+child_recvcounts[i-1];
+    }
+    child_sendcount += sendcount%2;
+ 
+    status = gkMPI_Allgatherv((void*)((idx_t*)sendbuf+sendcount/2),
+      child_sendcount, sendtype, child_recvbuf, child_recvcounts, child_rdispls, recvtype, comm);
+ 
+    for (i=0; i<npes; i++) {
+      memcpy((idx_t*)recvbuf+rdispls[i]+recvcounts[i]/2,
+        (idx_t*)child_recvbuf+child_rdispls[i], sizeof(idx_t)*child_recvcounts[i]);
+    }
+ 
+    gk_free((void **)&child_recvcounts, &child_rdispls, &child_recvbuf, LTERM);
+    return status;
+  }
+
+  // Length of message is shorter than int max, run allgatherv directly
   lrecvcounts = gk_imalloc(npes, "lrecvcounts");
   lrdispls    = gk_imalloc(npes, "lrdispls");
 
