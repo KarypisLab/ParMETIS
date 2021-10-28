@@ -81,9 +81,11 @@ void CommSetup(ctrl_t *ctrl, graph_t *graph)
     }
   }
 
+  STARTTIMER(ctrl, ctrl->AuxTmr1);
   /* use a sort-based "unique" approach */
   ikvsorti(nadj, adjpairs);
   adjpairs[nadj].key = gnvtxs+1;  /* boundary condition */
+  STOPTIMER(ctrl, ctrl->AuxTmr1);
 
   /* determine how many distinct vertices you need to receive */
   for (nrecv=0, i=0; i<nadj; i++) {
