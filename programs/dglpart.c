@@ -113,7 +113,10 @@ int DistDGL_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm)
   ubvec  = rsmalloc(graph->ncon, 1.02, "DistDGL_GPart: unvec");
 
   if (mype == 0)
-    printf("\nDistDGL partitioning, ncon: %"PRIDX", nparts: %"PRIDX"\n", graph->ncon, nparts);
+    printf("\nDistDGL partitioning, ncon: %"PRIDX", nparts: %"PRIDX" [%s, %s, MPI %d.%d]\n", 
+        graph->ncon, nparts, 
+        (sizeof(idx_t)==8 ? "i64" : "i32"), (sizeof(real_t)==8 ? "r64" : "r32"),
+        MPI_VERSION, MPI_SUBVERSION);
 
   ParMETIS_V3_PartKway(graph->vtxdist, graph->xadj, graph->adjncy, graph->vwgt, NULL, 
       &wgtflag, &numflag, &(graph->ncon), &nparts, tpwgts, ubvec, options, &edgecut, 
