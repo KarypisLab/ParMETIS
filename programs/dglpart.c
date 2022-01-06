@@ -719,7 +719,11 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
           rlen = strlen(gk_strtprune(line, "\n\r"));
           nlinesread++;
 
-          sscanf(line, "%"SCIDX" %"SCIDX, &uu, &vv);
+          /* sscanf(line, "%"SCIDX" %"SCIDX, &uu, &vv); */
+          /* NOTE: The edges are read as (dest-id, source-id), as they 
+             are assigned to the partitions based on the dest-id; 
+             i.e., each partition stores the incoming edges */
+          sscanf(line, "%"SCIDX" %"SCIDX, &vv, &uu);
           u = vtxdist[uu%npes] + uu/npes;
           v = vtxdist[vv%npes] + vv/npes;
 
