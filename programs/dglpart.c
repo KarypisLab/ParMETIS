@@ -97,6 +97,18 @@ int DistDGL_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm)
   if (graph == NULL)
     return EXIT_FAILURE;
 
+  /* Report peak memory use before partitioning */
+  for (i=npes-1; i>=0; i--) {
+    if (i == mype && mype == npes-1)
+      printf("\n-------------------------------------------------------\n");
+    if (i == mype) 
+      printf("[%03"PRIDX"] proc/self/stat/VmPeak:     %.2f MB\n", mype, (float)gk_GetProcVmPeak()/(1024.0*1024.0));
+    if (i == 0 && mype == 0)
+      printf("-------------------------------------------------------\n");
+    fflush(stdout);
+    gkMPI_Barrier(comm);
+  }
+
   /*======================================================================
   / Partition the graph 
   /=======================================================================*/
@@ -122,19 +134,27 @@ int DistDGL_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm)
       &wgtflag, &numflag, &(graph->ncon), &nparts, tpwgts, ubvec, options, &edgecut, 
       part, &comm);
 
-
   /*======================================================================
   / Move the graph based on the partitioning
   /=======================================================================*/
   mgraph = DistDGL_MoveGraph(graph, part, nparts_per_pe, comm);
-
 
   /*======================================================================
   / Write the different partitions to disk 
   /=======================================================================*/
   DistDGL_WriteGraphs(fstem, mgraph, nparts_per_pe, comm);
 
-  gk_free((void **)&tpwgts, &ubvec, &part, LTERM);
+  /* Report peak memory use after partitioning */
+  for (i=npes-1; i>=0; i--) {
+    if (i == mype && mype == npes-1)
+      printf("\n-------------------------------------------------------\n");
+    if (i == mype) 
+      printf("[%03"PRIDX"] proc/self/stat/VmPeak:     %.2f MB\n", mype, (float)gk_GetProcVmPeak()/(1024.0*1024.0));
+    if (i == 0 && mype == 0)
+      printf("-------------------------------------------------------\n");
+    fflush(stdout);
+    gkMPI_Barrier(comm);
+  }
 
   return EXIT_SUCCESS;
 }

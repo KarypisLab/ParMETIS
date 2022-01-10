@@ -93,6 +93,8 @@ void cnbrpoolReset(ctrl_t *ctrl)
 /*************************************************************************/
 idx_t cnbrpoolGetNext(ctrl_t *ctrl, idx_t nnbrs)
 {
+  nnbrs = gk_min(ctrl->nparts, nnbrs);
+
   ctrl->nbrpoolcpos += nnbrs;
 
   if (ctrl->nbrpoolcpos > ctrl->nbrpoolsize) {
@@ -105,6 +107,7 @@ idx_t cnbrpoolGetNext(ctrl_t *ctrl, idx_t nnbrs)
 
   return ctrl->nbrpoolcpos - nnbrs;
 }
+
 
 /*************************************************************************/
 /*! This function allocate space from the core */

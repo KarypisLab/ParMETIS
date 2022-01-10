@@ -67,7 +67,7 @@ void Mc_ComputeSerialPartitionParams(ctrl_t *ctrl, graph_t *graph, idx_t nparts)
 
     /* Time to compute the particular external degrees */
     if (myrinfo->ed > 0) {
-      myrinfo->inbr = cnbrpoolGetNext(ctrl, xadj[i+1]-xadj[i]+1);
+      myrinfo->inbr = cnbrpoolGetNext(ctrl, xadj[i+1]-xadj[i]);
       mynbrs        = ctrl->cnbrpool + myrinfo->inbr;
 
       for (j=xadj[i]; j<xadj[i+1]; j++) {
@@ -256,7 +256,7 @@ void Mc_SerialKWayAdaptRefine(ctrl_t *ctrl, graph_t *graph, idx_t nparts,
 
           myrinfo = graph->ckrinfo+ii;
           if (myrinfo->inbr == -1) {
-            myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[ii+1]-xadj[ii]+1);
+            myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[ii+1]-xadj[ii]);
             myrinfo->nnbrs = 0;
           }
           mynbrs = ctrl->cnbrpool + myrinfo->inbr;
