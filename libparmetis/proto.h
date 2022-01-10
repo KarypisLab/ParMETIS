@@ -32,6 +32,7 @@ void Match_Global(ctrl_t *, graph_t *);
 void Match_Local(ctrl_t *, graph_t *);
 void CreateCoarseGraph_Global(ctrl_t *, graph_t *, idx_t);
 void CreateCoarseGraph_Local(ctrl_t *, graph_t *, idx_t);
+void DropEdges(ctrl_t *ctrl, graph_t *graph);
 
 
 /* initpart.c */
@@ -52,7 +53,6 @@ idx_t SimilarTpwgts(real_t *, idx_t, idx_t, idx_t);
 
 /* move.c */
 graph_t *MoveGraph(ctrl_t *, graph_t *);
-/* move.c */
 void CheckMGraph(ctrl_t *, graph_t *); 
 void ProjectInfoBack(ctrl_t *, graph_t *, idx_t *, idx_t *);
 void FindVtxPerm(ctrl_t *, graph_t *, idx_t *);
@@ -256,7 +256,7 @@ size_t rargmax2(size_t n, real_t *x);
 real_t ravg(size_t n, real_t *x);
 real_t rfavg(size_t n, real_t *x);
 
-/* grsetup.c */
+/* graph.c */
 graph_t *SetupGraph(ctrl_t *ctrl, idx_t ncon, idx_t *vtxdist, idx_t *xadj,
              idx_t *vwgt, idx_t *vsize, idx_t *adjncy, idx_t *adjwgt, 
              idx_t wgtflag);
@@ -266,7 +266,12 @@ void InitGraph(graph_t *);
 void FreeGraph(graph_t *graph);
 void FreeNonGraphFields(graph_t *graph);
 void FreeNonGraphNonSetupFields(graph_t *graph);
+void FreeCommSetupFields(graph_t *graph);
 void FreeInitialGraphAndRemap(graph_t *graph);
+void graph_WriteToDisk(ctrl_t *ctrl, graph_t *graph);
+void graph_ReadFromDisk(ctrl_t *ctrl, graph_t *graph);
+
+/* renumber.c */
 void ChangeNumbering(idx_t *, idx_t *, idx_t *, idx_t *, idx_t, idx_t, idx_t);
 void ChangeNumberingMesh(idx_t *elmdist, idx_t *eptr, idx_t *eind,
                          idx_t *xadj, idx_t *adjncy, idx_t *part,
@@ -276,7 +281,6 @@ void ChangeNumberingMesh(idx_t *elmdist, idx_t *eptr, idx_t *eind,
 void InitTimers(ctrl_t *);
 void PrintTimingInfo(ctrl_t *);
 void PrintTimer(ctrl_t *, timer, char *);
-
 
 
 /* parmetis.c */

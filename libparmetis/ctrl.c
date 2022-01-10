@@ -82,6 +82,12 @@ ctrl_t *SetupCtrl(pmoptype_et optype, idx_t *options, idx_t ncon, idx_t nparts,
   ctrl->sync   = GlobalSEMax(ctrl, ctrl->seed);
   ctrl->seed   = (ctrl->seed == 0 ? ctrl->mype : ctrl->seed*ctrl->mype);
 
+  /* options passed via dbglvl */
+  ctrl->dropedges = ctrl->dbglvl&PARMETIS_DBGLVL_DROPEDGES; 
+  ctrl->twohop    = ctrl->dbglvl&PARMETIS_DBGLVL_TWOHOP; 
+  ctrl->fast      = ctrl->dbglvl&PARMETIS_DBGLVL_FAST; 
+  ctrl->ondisk    = ctrl->dbglvl&PARMETIS_DBGLVL_ONDISK; 
+  ctrl->pid       = getpid();
 
   /* common info */
   ctrl->optype        = optype;

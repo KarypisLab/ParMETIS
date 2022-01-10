@@ -1,14 +1,14 @@
 # Configuration options.
 cc         = mpicc
-db         = not-set
+gdb        = not-set
 assert     = not-set
 assert2    = not-set
 debug      = not-set
 openmp     = not-set
-prefix     = not-set
 shared     = not-set
-gklib_path = not-set
-metis_path = not-set
+prefix     = ~/local
+gklib_path = ~/local
+metis_path = ~/local
 
 
 # Basically proxies everything to the builddir cmake.

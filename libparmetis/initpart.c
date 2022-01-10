@@ -72,6 +72,13 @@ void InitPartition(ctrl_t *ctrl, graph_t *graph)
   /* Go into the recursive bisection */
   METIS_SetDefaultOptions(moptions);
   moptions[METIS_OPTION_SEED] = ctrl->sync + (ctrl->mype % ngroups) + 1;
+  if (ctrl->fast) {
+    moptions[METIS_OPTION_NITER] = 1;
+    moptions[METIS_OPTION_NIPARTS] = 1;
+    moptions[METIS_OPTION_DROPEDGES] = 1;
+    moptions[METIS_OPTION_ONDISK] = 1;
+    //moptions[METIS_OPTION_NO2HOP] = 0;
+  }
 
   tpwgts  = ctrl->tpwgts;
   tpwgts2 = rwspacemalloc(ctrl, 2*ncon);

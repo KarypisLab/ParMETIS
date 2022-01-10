@@ -296,7 +296,7 @@ void KWayAdaptiveRefine(ctrl_t *ctrl, graph_t *graph, idx_t npasses)
 
             myrinfo = graph->ckrinfo+me;
             if (myrinfo->inbr == -1) {
-              myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[me+1]-xadj[me]+1);
+              myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[me+1]-xadj[me]);
               myrinfo->nnbrs = 0;
             }
             mynbrs = ctrl->cnbrpool + myrinfo->inbr;
@@ -429,7 +429,7 @@ void KWayAdaptiveRefine(ctrl_t *ctrl, graph_t *graph, idx_t npasses)
 
               myrinfo = graph->ckrinfo+me;
               if (myrinfo->inbr == -1) {
-                myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[me+1]-xadj[me]+1);
+                myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[me+1]-xadj[me]);
                 myrinfo->nnbrs = 0;
               }
               mynbrs = ctrl->cnbrpool + myrinfo->inbr;
@@ -578,7 +578,7 @@ void KWayAdaptiveRefine(ctrl_t *ctrl, graph_t *graph, idx_t npasses)
         myrinfo  = graph->ckrinfo+i;
 
         if (myrinfo->inbr == -1)
-          myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[i+1]-xadj[i]+1);
+          myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[i+1]-xadj[i]);
         mynbrs = ctrl->cnbrpool + myrinfo->inbr;
 
         graph->lmincut -= oldEDs[i];

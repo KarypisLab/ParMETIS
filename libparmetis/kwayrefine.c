@@ -198,7 +198,7 @@ void ComputePartitionParams(ctrl_t *ctrl, graph_t *graph)
     if (myrinfo->ed > 0) {  /* Time to do some serious work */
       graph->lmincut += myrinfo->ed;
 
-      myrinfo->inbr = cnbrpoolGetNext(ctrl, xadj[i+1]-xadj[i]+1);
+      myrinfo->inbr = cnbrpoolGetNext(ctrl, xadj[i+1]-xadj[i]);
       mynbrs        = ctrl->cnbrpool + myrinfo->inbr;
 
       for (j=xadj[i]; j<xadj[i+1]; j++) {
@@ -455,7 +455,7 @@ void KWayFM(ctrl_t *ctrl, graph_t *graph, idx_t npasses)
 
             myrinfo = graph->ckrinfo+me;
             if (myrinfo->inbr == -1) {
-              myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[me+1]-xadj[me]+1);
+              myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[me+1]-xadj[me]);
               myrinfo->nnbrs = 0;
             }
             mynbrs = ctrl->cnbrpool + myrinfo->inbr;
@@ -591,7 +591,7 @@ void KWayFM(ctrl_t *ctrl, graph_t *graph, idx_t npasses)
 
               myrinfo = graph->ckrinfo+me;
               if (myrinfo->inbr == -1) {
-                myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[me+1]-xadj[me]+1);
+                myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[me+1]-xadj[me]);
                 myrinfo->nnbrs = 0;
               }
               mynbrs = ctrl->cnbrpool + myrinfo->inbr;
@@ -743,7 +743,7 @@ void KWayFM(ctrl_t *ctrl, graph_t *graph, idx_t npasses)
         myrinfo  = graph->ckrinfo+i;
 
         if (myrinfo->inbr == -1) 
-          myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[i+1]-xadj[i]+1);
+          myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[i+1]-xadj[i]);
         mynbrs = ctrl->cnbrpool + myrinfo->inbr;
 
         graph->lmincut -= oldEDs[i];
@@ -980,7 +980,7 @@ void KWayBalance(ctrl_t *ctrl, graph_t *graph, idx_t npasses)
 
             myrinfo = graph->ckrinfo+me;
             if (myrinfo->inbr == -1) {
-              myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[me+1]-xadj[me]+1);
+              myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[me+1]-xadj[me]);
               myrinfo->nnbrs = 0;
             }
             mynbrs = ctrl->cnbrpool + myrinfo->inbr;
@@ -1128,7 +1128,7 @@ void KWayBalance(ctrl_t *ctrl, graph_t *graph, idx_t npasses)
         mydomain = where[i];
         myrinfo  = graph->ckrinfo+i;
         if (myrinfo->inbr == -1)
-          myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[i+1]-xadj[i]+1);
+          myrinfo->inbr  = cnbrpoolGetNext(ctrl, xadj[i+1]-xadj[i]);
         mynbrs = ctrl->cnbrpool + myrinfo->inbr;
 
         graph->lmincut -= oldEDs[i];

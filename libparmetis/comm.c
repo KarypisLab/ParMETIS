@@ -81,9 +81,11 @@ void CommSetup(ctrl_t *ctrl, graph_t *graph)
     }
   }
 
+  STARTTIMER(ctrl, ctrl->AuxTmr1);
   /* use a sort-based "unique" approach */
   ikvsorti(nadj, adjpairs);
   adjpairs[nadj].key = gnvtxs+1;  /* boundary condition */
+  STOPTIMER(ctrl, ctrl->AuxTmr1);
 
   /* determine how many distinct vertices you need to receive */
   for (nrecv=0, i=0; i<nadj; i++) {
@@ -431,7 +433,6 @@ idx_t GlobalSEMinComm(MPI_Comm comm, idx_t value)
   return min;
 }
 
-
 /*************************************************************************
 * This function computes the max of a single element
 **************************************************************************/
@@ -456,8 +457,6 @@ idx_t GlobalSESumComm(MPI_Comm comm, idx_t value)
   return min;
 }
 
-
-
 /*************************************************************************
 * This function computes the max of a single element
 **************************************************************************/
@@ -469,8 +468,6 @@ real_t GlobalSEMaxFloat(ctrl_t *ctrl, real_t value)
 
   return max;
 }
-
-
 
 /*************************************************************************
 * This function computes the max of a single element
