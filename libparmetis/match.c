@@ -681,7 +681,8 @@ void Match_Global(ctrl_t *ctrl, graph_t *graph)
           v = adjncy[j];
           for (jj=rxadj[v]; jj<rxadj[v+1]; jj++) {
             k = radjncy[jj];
-            if (k != i && match[k] == UNMATCHED && xadj[k+1]-xadj[k] <= avgdegree 
+            if (k != i && match[k] == UNMATCHED 
+                //&& xadj[k+1]-xadj[k] <= avgdegree 
                 //&& RandomInRange(xadj[k+1]-xadj[k]) == 0
                 ) {
               match[i] = firstvtx+k + (i <= k ? KEEP_BIT : 0);

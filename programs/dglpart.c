@@ -1236,7 +1236,7 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
     for (j=xadj[i]; j<xadj[i+1]; j++) {
       if (emptr[j] < emptr[j+1]) { /* real edge */
         fprintf(edgefps[pnum], "%"PRIDX" %"PRIDX" %s\n", 
-            newlabel[i], newlabel[adjncy[j]], emdata+emptr[j]);
+            newlabel[adjncy[j]], newlabel[i], emdata+emptr[j]);
       }
     }
   }
