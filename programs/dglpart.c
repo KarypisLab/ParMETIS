@@ -10,7 +10,7 @@
 
 #include <parmetisbin.h>
 
-#define CHUNKSIZE (1<<15)
+#define CHUNKSIZE (1<<16)
 
 /* The following is to perform a cyclic distribution of the input vertex IDs
    in order to balance the adjancency lists during the partitioning computations */
@@ -36,7 +36,7 @@ typedef struct mvinfo_t {
 
 int DistDGL_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm);
 graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm);
-graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe, MPI_Comm comm);
+graph_t *DistDGL_MoveGraph(graph_t *graph, idx_t *part, idx_t nparts_per_pe, MPI_Comm comm);
 void DistDGL_CheckMGraph(ctrl_t *ctrl, graph_t *graph, idx_t nparts_per_pe);
 void i2kvsorti(size_t n, i2kv_t *base);
 void i2kvsortii(size_t n, i2kv_t *base);
@@ -134,15 +134,6 @@ int DistDGL_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm)
       &wgtflag, &numflag, &(graph->ncon), &nparts, tpwgts, ubvec, options, &edgecut, 
       part, &comm);
 
-  /*======================================================================
-  / Move the graph based on the partitioning
-  /=======================================================================*/
-  mgraph = DistDGL_MoveGraph(graph, part, nparts_per_pe, comm);
-
-  /*======================================================================
-  / Write the different partitions to disk 
-  /=======================================================================*/
-  DistDGL_WriteGraphs(fstem, mgraph, nparts_per_pe, comm);
 
   /* Report peak memory use after partitioning */
   for (i=npes-1; i>=0; i--) {
@@ -156,6 +147,30 @@ int DistDGL_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm)
     gkMPI_Barrier(comm);
   }
 
+  /*======================================================================
+  / Move the graph based on the partitioning
+  /=======================================================================*/
+  gk_free((void **)&graph->vwgt, LTERM);
+  graph->ncon = 1;
+  mgraph = DistDGL_MoveGraph(graph, part, nparts_per_pe, comm);
+
+  /* Report peak memory use after partitioning */
+  for (i=npes-1; i>=0; i--) {
+    if (i == mype && mype == npes-1)
+      printf("\n-------------------------------------------------------\n");
+    if (i == mype) 
+      printf("[%03"PRIDX"] proc/self/stat/VmPeak:     %.2f MB\n", mype, (float)gk_GetProcVmPeak()/(1024.0*1024.0));
+    if (i == 0 && mype == 0)
+      printf("-------------------------------------------------------\n");
+    fflush(stdout);
+    gkMPI_Barrier(comm);
+  }
+
+  /*======================================================================
+  / Write the different partitions to disk 
+  /=======================================================================*/
+  DistDGL_WriteGraphs(fstem, mgraph, nparts_per_pe, comm);
+
   return EXIT_SUCCESS;
 }
 
@@ -164,7 +179,7 @@ int DistDGL_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm)
 /*! This function takes a graph and its partition vector and creates a new
      graph corresponding to the one after the movement */
 /*************************************************************************/
-graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe, 
+graph_t *DistDGL_MoveGraph(graph_t *graph, idx_t *part, idx_t nparts_per_pe, 
              MPI_Comm comm)
 {
   idx_t npes, mype, nparts, idxwidth;
@@ -174,7 +189,7 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
   idx_t *where, *newlabel, *vtype, *lpwgts, *gpwgts;
   idx_t *sgraph, *rgraph;
   mvinfo_t *sinfo, *rinfo;
-  graph_t *graph, *mgraph;
+  graph_t *mgraph;
   idx_t *vmptr, *emptr;
   char *vmdata, *emdata;
   idx_t *iptr, ilen; 
@@ -186,14 +201,15 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
   npes = ctrl->npes;
   mype = ctrl->mype;
 
-  ctrl->CoarsenTo = 1;  /* Needed by SetUpGraph, otherwise we can FP errors */
-  graph = SetupGraph(ctrl, 1, ograph->vtxdist, ograph->xadj, ograph->vwgt, ograph->vsize,
-              ograph->adjncy, ograph->adjwgt, 0);
-  AllocateWSpace(ctrl, 0);
-
-  CommSetup(ctrl, graph);
-
   nparts = npes*nparts_per_pe;
+
+  nvtxs  = graph->nvtxs;
+  xadj   = graph->xadj;
+  adjncy = graph->adjncy;
+  vtype  = graph->vtype;
+  where  = part;
+
+  AllocateWSpace(ctrl, 0);
 
   WCOREPUSH;
 
@@ -202,29 +218,33 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
     size_t size;
     char filein[256];
 
-    sprintf(filein, "emdata-%d-%"PRIDX".bin", (int)getpid(), mype);
-    ograph->emdata = gk_creadfilebin(filein, &size);
-    if (size != ograph->emdata_size)
-      printf("[%4"PRIDX"] size: %zu != %zu\n", mype, size, ograph->emdata_size);
+    sprintf(filein, "emdata-p-%d-%"PRIDX".bin", (int)getpid(), mype);
+    emptr = (idx_t *)gk_creadfilebin(filein, &size);
+    if (size != (graph->nedges+1)*idxwidth) 
+      printf("[%4"PRIDX"] size: %zu != %zu\n", mype, size, (graph->nedges+1)*idxwidth);
+    gk_rmpath(filein);
+
+    sprintf(filein, "emdata-v-%d-%"PRIDX".bin", (int)getpid(), mype);
+    emdata = gk_creadfilebin(filein, &size);
+    if (size != graph->emdata_size)
+      printf("[%4"PRIDX"] size: %zu != %zu\n", mype, size, graph->emdata_size);
     gk_rmpath(filein);
     
-    sprintf(filein, "vmdata-%d-%"PRIDX".bin", (int)getpid(), mype);
-    ograph->vmdata = gk_creadfilebin(filein, &size);
-    if (size != ograph->vmdata_size)
-      printf("[%4"PRIDX"] size: %zu != %zu\n", mype, size, ograph->vmdata_size);
+    sprintf(filein, "vmdata-p-%d-%"PRIDX".bin", (int)getpid(), mype);
+    vmptr = (idx_t *)gk_creadfilebin(filein, &size);
+    if (size != (nvtxs+1)*idxwidth)
+      printf("[%4"PRIDX"] size: %zu != %zu\n", mype, size, (nvtxs+1)*idxwidth);
+    gk_rmpath(filein);
+
+    sprintf(filein, "vmdata-v-%d-%"PRIDX".bin", (int)getpid(), mype);
+    vmdata = gk_creadfilebin(filein, &size);
+    if (size != graph->vmdata_size)
+      printf("[%4"PRIDX"] size: %zu != %zu\n", mype, size, graph->vmdata_size);
     gk_rmpath(filein);
   }
 
-  nvtxs  = graph->nvtxs;
-  xadj   = graph->xadj;
-  adjncy = graph->adjncy;
-  where  = part;
 
-  vmptr  = ograph->vmptr;
-  emptr  = ograph->emptr;
-  vmdata = ograph->vmdata;
-  emdata = ograph->emdata;
-  vtype  = ograph->vtype;
+  CommSetup(ctrl, graph);
 
   mvtxdist = imalloc(nparts+1, "DistDGL_MoveGraph: mvtxdist");
 
@@ -322,7 +342,7 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
       PASSERT(ctrl, gpwgts[i+1]-gpwgts[i] == 0);
   }
 
-  /* Assemble the graph to be sent and send it */
+  /* assemble the graph to be sent */
   for (i=0; i<nvtxs; i++) {
     PASSERT(ctrl, where[i] >= 0 && where[i] < nparts);
     ii = lpwgts[where[i]];
@@ -353,6 +373,11 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
   SHIFTCSR(i, nparts, lpwgts);
   //myprintf(ctrl, "lpwgts: %d %d %d\n", lpwgts[0], lpwgts[1], lpwgts[2]);
 
+  /* free vertex/edge meta data and the structure of the original graph */
+  gk_free((void **)&emptr, &emdata, &vmptr, &vmdata, LTERM); 
+  gk_free((void **)&graph->xadj, &graph->adjncy, &graph->vtype, LTERM);
+
+  /* sent the assembled graph */
   for (j=0, i=0; i<nparts; i++) {
     if (sinfo[i].nvtxs > 0) {
       //myprintf(ctrl, "[%"PRIDX"]Send to: %"PRIDX" tag: %"PRIDX"\n", i, i/nparts_per_pe, 1+i%nparts_per_pe);
@@ -466,92 +491,11 @@ graph_t *DistDGL_MoveGraph(graph_t *ograph, idx_t *part, idx_t nparts_per_pe,
 
   WCOREPOP;
 
-  graph->where = NULL;
-  FreeInitialGraphAndRemap(graph);
   FreeCtrl(&ctrl);
 
-  mgraph->where = where;
   return mgraph;
 }
 
-
-#ifdef XXXX
-/*************************************************************************/
-/*! This function takes a graph and its partition vector and creates a new
-     graph corresponding to the one after the movement */
-/*************************************************************************/
-DistDGL_TypePermute(graph_t *ograph, idx_t nparts_per_pe, MPI_Comm comm)
-{
-  idx_t npes, mype, nparts;
-  ctrl_t *ctrl;
-  idx_t h, i, ii, j, jj, k, nvtxs;
-  idx_t *xadj, *adjncy;
-  idx_t *where, *newlabel, *vtype;
-  graph_t *graph, *mgraph;
-  idx_t *vmptr, *emptr;
-  char *vmdata, *emdata;
-  idx_t *iptr, ilen; 
-  i2kv_t *cand;
-  idx_t *cvtxdist, *fvtxdist;
-
-  fvtxdist = ograph->vtxdist;
-  vmptr    = ograph->vmptr;
-  emptr    = ograph->emptr;
-  vmdata   = ograph->vmdata;
-  emdata   = ograph->emdata;
-  vtype    = ograph->vtype;
-  where    = ograph->where;
-
-  gkMPI_Comm_size(comm, &npes);
-  ctrl = SetupCtrl(PARMETIS_OP_KMETIS, NULL, 1, npes, NULL, NULL, comm); 
-  mype = ctrl->mype;
-
-  ctrl->CoarsenTo = 1;  /* Needed by SetUpGraph, otherwise we can FP errors */
-  vtxdist = imalloc(npes+1, "DistDGL_TypePermute: vtxdist");
-  for (i=0; i<npes; i++)
-    cvtxdist[i] = fvtxdist[(i+1)*nparts_per_pe]-fvtxdist[i*nparts_per_pe];
-  MAKECSR(i, npes, cvtxdist);
-
-  graph = SetupGraph(ctrl, 1, cvtxdist, ograph->xadj, NULL, NULL, ograph->adjncy, NULL, 0);
-  AllocateWSpace(ctrl, 0);
-
-  CommSetup(ctrl, graph);
-
-  nparts = npes*nparts_per_pe;
-
-  WCOREPUSH;
-
-  nvtxs   = graph->nvtxs;
-  xadj    = graph->xadj;
-  adjncy  = graph->adjncy;
-
-  cand = (i2kv_t *)iwspacemalloc(ctrl, nvtxs*sizeof(i2kv_t)/sizeof(idx_t));
-  for (i=0; i<nvtxs; i++) {
-    cand[i].key1 = where[i];
-    cand[i].key2 = vtype[i];
-    cand[i].val  = i;
-  }
-  i2kvsortii(nvtxs, cand);
-
-  newlabel = iwspacemalloc(ctrl, nvtxs+graph->nrecv);
-  for (i=0; i<nvtxs; i++) 
-    newlabel[cand[i].key3] = cvtxdist[mype]+i;
-
-  /* Send the newlabel info to processors storing adjacent interface nodes */
-  CommInterfaceData(ctrl, graph, newlabel, newlabel+nvtxs);
-
-
-
-
-
-  WCOREPOP;
-
-  graph->where = NULL;
-  FreeInitialGraphAndRemap(graph);
-  FreeCtrl(&ctrl);
-
-}
-#endif
 
 /*************************************************************************/
 /*! Checks the local consistency of moved graph. */
@@ -694,12 +638,14 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     idx_t firstvtx, lastvtx;
 
     chunksize = CHUNKSIZE;
-    nchunks = 2*gnedges/chunksize;
+    nchunks = 1+gnedges/chunksize;
     nlinesread = 0;
     if (mype == 0) {
       sprintf(filename, "%s_edges.txt", fstem);
       fsize = 2*gk_getfsize(filename)/nchunks;  /* give it a 2x xtra space */
       fpin = gk_fopen(filename, "r", "DistDGL_ReadGraph: edges.txt");
+
+      printf("[edata0]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
   
       coo_buffers_cpos  = imalloc(npes, "coo_buffers_cpos");
       meta_buffers_cpos = imalloc(npes, "meta_buflen_cpos");
@@ -719,16 +665,6 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     coo_chunks  = (i2kv_t **)gk_malloc(nchunks*sizeof(i2kv_t *), "coo_chunks");
     meta_chunks = (char **)gk_malloc(nchunks*sizeof(char *), "meta_chunks");
   
-    /*
-    if (mype == 0) {
-      for (u=0; u<gnvtxs; u++)
-        printf("%6d => %6d => %6d [ %2d %5d ]\n", u, 
-            DistDGL_mapToCyclic(u, npes, vtxdist), 
-            DistDGL_mapFromCyclic(DistDGL_mapToCyclic(u, npes, vtxdist), npes, vtxdist), 
-            u%npes, u/npes);
-    }
-    */
-
     /* start reading the edge file */
     for (chunk=0;;chunk++) {
       if (mype  == 0) {
@@ -759,7 +695,8 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
 
           /* see if you need to realloc the metadata buffer */
           if (meta_buffers_cpos[pe]+rlen+1 >= meta_buffers_len[pe]) {
-            meta_buffers_len[pe] += meta_buffers_len[pe] + rlen + 1;
+            //printf("[%03"PRIDX"] Readjusting meta_buffers_cpos[%"PRIDX"]\n", mype, pe);
+            meta_buffers_len[pe] += 1.2*meta_buffers_len[pe] + rlen + 1;
             meta_buffers[pe] = gk_crealloc(meta_buffers[pe], meta_buffers_len[pe], "meta_buffers[pe]");
           }
 
@@ -785,7 +722,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
       /* adjust memory if needed */
       if (chunk >= nchunks) {
         //printf("[%03"PRIDX"] Readjusting nchunks: %"PRIDX"\n", mype, nchunks);
-        nchunks *= 2;
+        nchunks *= 1.2;
         coo_chunks_len  = irealloc(coo_chunks_len, nchunks, "coo_chunks_len");
         meta_chunks_len = irealloc(meta_chunks_len, nchunks, "meta_chunks_len");
         coo_chunks  = (i2kv_t **)gk_realloc(coo_chunks, nchunks*sizeof(i2kv_t *), "coo_chunks");
@@ -805,10 +742,6 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
         meta_chunks[chunk] = gk_cmalloc(meta_chunks_len[chunk], "meta_chunks[chunk]");
         gk_ccopy(coo_buffers_cpos[0]*sizeof(i2kv_t), (char *)coo_buffers[0], (char *)coo_chunks[chunk]);
         gk_ccopy(meta_buffers_cpos[0], meta_buffers[0], meta_chunks[chunk]);
-
-        //printf("[%03"PRIDX"] chunk: %"PRIDX", u:%"PRIDX", v:%"PRIDX", val:%s\n",
-        //    mype, chunk, coo_chunks[chunk][0].key1, coo_chunks[chunk][0].key2, 
-        //    (coo_chunks[chunk][0].val == -1 ? "-1" : meta_chunks[chunk]+coo_chunks[chunk][0].val));
       }
       else {
         gkMPI_Recv((void *)&(coo_chunks_len[chunk]), 1, IDX_T, 0, 0, comm, &stat);
@@ -817,18 +750,14 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
         meta_chunks[chunk] = gk_cmalloc(meta_chunks_len[chunk], "meta_chunks[chunk]");
         gkMPI_Recv((void *)coo_chunks[chunk], coo_chunks_len[chunk]*sizeof(i2kv_t), MPI_BYTE, 0, 0, comm, &stat);
         gkMPI_Recv((void *)meta_chunks[chunk], meta_chunks_len[chunk], MPI_CHAR, 0, 0, comm, &stat);
-
-        //printf("[%03"PRIDX"] chunk: %"PRIDX", u:%"PRIDX", v:%"PRIDX", val:%s\n",
-        //    mype, chunk, coo_chunks[chunk][0].key1, coo_chunks[chunk][0].key2, 
-        //    (coo_chunks[chunk][0].val == -1 ? "-1" : meta_chunks[chunk]+coo_chunks[chunk][0].val));
       }
     }
     nchunks = chunk;
 
-    //printf("[%03"PRIDX"] Final nchunks: %"PRIDX"\n", mype, nchunks);
-  
     /* done reading the edge file */
     if (mype == 0) {
+      printf("[edata1]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
+
       gk_fclose(fpin);
       
       for (pe=0; pe<npes; pe++) 
@@ -861,7 +790,11 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
       gk_free((void **)&coo_chunks[chunk], &meta_chunks[chunk], LTERM);
     }
     gk_free((void **)&coo_chunks_len, &meta_chunks_len, LTERM);
+
+    //printf("[%03"PRIDX"] Done with consolidating the chunks into single arrays.\n", mype);
+    gkMPI_Barrier(comm);
   
+
     /* sort and remove duplicates */
     i2kvsorti(lnedges, lcoo);
     for (j=0, i=1; i<lnedges; i++) {
@@ -878,9 +811,42 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
 
     //printf("[%03"PRIDX"] Done with sorting and de-duplication.\n", mype);
     gkMPI_Barrier(comm);
+
+
+    /* convert the lmeta into the (emptr, emdata) arrays */
+    graph->emdata_size = lnmeta+lnedges*idxwidth;
+    emptr  = graph->emptr  = ismalloc(lnedges+1, 0, "DistDGL_ReadGraph: emptr");
+    emdata = graph->emdata = gk_cmalloc(graph->emdata_size, "DistDGL_ReadGraph: emdata");
+    for (i=0; i<lnedges; i++) {
+      if (lcoo[i].val == -1) {
+        emptr[i+1] = emptr[i];
+      }
+      else { 
+        j = strlen(lmeta+lcoo[i].val)+1;
+        gk_ccopy(j, lmeta+lcoo[i].val, emdata+emptr[i]);
+        emptr[i+1] = emptr[i] + ((j+idxwidth-1)/idxwidth)*idxwidth; /* pad them to idxwidth boundaries */
+      }
+    }
+    gk_free((void **)&lmeta, LTERM);
+
+
+    /* save the (emptr, emdata) into a file for now */
+    {
+      char fileout[256];
+      sprintf(fileout, "emdata-p-%d-%"PRIDX".bin", (int)getpid(), mype);
+      gk_cwritefilebin(fileout, (lnedges+1)*idxwidth, (char *)emptr);
+      sprintf(fileout, "emdata-v-%d-%"PRIDX".bin", (int)getpid(), mype);
+      gk_cwritefilebin(fileout, graph->emdata_size, emdata);
+      gk_free((void **)&graph->emptr, &graph->emdata, LTERM);
+    }
+
+    //printf("[%03"PRIDX"] Done with saving emdata into a file.\n", mype);
+    gkMPI_Barrier(comm);
   
+
     /* convert the coo into the csr version */
-    graph->nvtxs = nvtxs;
+    graph->nvtxs  = nvtxs;
+    graph->nedges = lnedges;
     xadj   = graph->xadj   = ismalloc(nvtxs+1, 0, "DistDGL_ReadGraph: xadj");
     adjncy = graph->adjncy = imalloc(lnedges, "DistDGL_ReadGraph: adjncy");
   
@@ -896,33 +862,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
       adjncy[xadj[lcoo[i].key1-firstvtx]++] = lcoo[i].key2;
     SHIFTCSR(i, nvtxs, xadj);
   
-    //printf("[%03"PRIDX"] Done with csr conversion.\n", mype);
-    gkMPI_Barrier(comm);
-  
-    /* convert the lmeta into the (emptr, emdata) arrays */
-    graph->emdata_size = lnmeta+lnedges*idxwidth;
-    emptr  = graph->emptr  = ismalloc(lnedges+1, 0, "DistDGL_ReadGraph: emptr");
-    emdata = graph->emdata = gk_cmalloc(graph->emdata_size, "DistDGL_ReadGraph: emdata");
-    for (i=0; i<lnedges; i++) {
-      if (lcoo[i].val == -1) {
-        emptr[i+1] = emptr[i];
-      }
-      else { 
-        j = strlen(lmeta+lcoo[i].val)+1;
-        gk_ccopy(j, lmeta+lcoo[i].val, emdata+emptr[i]);
-        emptr[i+1] = emptr[i] + ((j+idxwidth-1)/idxwidth)*idxwidth; /* pad them to idxwidth boundaries */
-      }
-    }
-
-    /* save the emdata into a file for now */
-    {
-      char fileout[256];
-      sprintf(fileout, "emdata-%d-%"PRIDX".bin", (int)getpid(), mype);
-      gk_cwritefilebin(fileout, graph->emdata_size, emdata);
-      gk_free((void **)&graph->emdata, LTERM);
-    }
-
-    gk_free((void **)&lcoo, &lmeta, LTERM);
+    gk_free((void **)&lcoo, LTERM);
   }
 
   //printf("[%03"PRIDX"] Done with edges.\n", mype);
@@ -934,7 +874,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
   /* read and distribute the node weights and their metadata */
   /* ======================================================= */
   {
-    idx_t u, v, vv, nlinesread, nchunks, chunk, chunksize, lnmeta;
+    idx_t u, nlinesread, nchunks, chunk, chunksize, lnmeta;
     idx_t *con_buffers_cpos=NULL, **con_buffers=NULL;
     idx_t *con_chunks_len=NULL, **con_chunks=NULL;
     idx_t *meta_buffers_cpos=NULL, *meta_buffers_len=NULL;
@@ -946,12 +886,15 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     char *vmdata;
 
     chunksize = CHUNKSIZE;
+    nchunks = 1+gnvtxs/chunksize;
     nlinesread = 0;
     if (mype == 0) {
       sprintf(filename, "%s_nodes.txt", fstem);
-      fsize = 3*gk_getfsize(filename)/(2*npes);  /* give it a 1.5x xtra space */
+      fsize = 2*gk_getfsize(filename)/nchunks;  /* give it a 2x xtra space */
       fpin = gk_fopen(filename, "r", "DistDGL_ReadGraph: nodes.txt");
   
+      printf("[vdata0]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
+
       con_buffers_cpos  = imalloc(npes, "con_buffers_cpos");
       meta_buffers_cpos = imalloc(npes, "meta_buflen_cpos");
       meta_buffers_len  = ismalloc(npes, fsize, "meta_buflen_len");
@@ -967,7 +910,6 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     }
   
     /* allocate memory for the chunks that will be collected by each PE */
-    nchunks = 2*gnvtxs/chunksize;
     con_chunks_len  = imalloc(nchunks, "con_chunks_len");
     meta_chunks_len = imalloc(nchunks, "meta_chunks_len");
     con_chunks  = (idx_t **)gk_malloc(nchunks*sizeof(idx_t *), "con_chunks");
@@ -983,11 +925,11 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
           rlen = strlen(gk_strtprune(line, "\n\r"));
           nlinesread++;
           pe = u%npes;
-          v = vtxdist[u%npes] + u/npes;
           u++;
   
           if (meta_buffers_cpos[pe]+rlen+1 >= meta_buffers_len[pe]) {
-            meta_buffers_len[pe] += meta_buffers_len[pe] + rlen + 1;
+            //printf("[%03"PRIDX"] Readjusting meta_buffers_cpos[%"PRIDX"]\n", mype, pe);
+            meta_buffers_len[pe] += 1.2*meta_buffers_len[pe] + rlen + 1;
             meta_buffers[pe] = gk_crealloc(meta_buffers[pe], meta_buffers_len[pe], "meta_buffers[pe]");
           }
 
@@ -999,9 +941,10 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
           }
   
           con_buffers[pe][(ncon+1)*con_buffers_cpos[pe]+ncon] = meta_buffers_cpos[pe];
+          con_buffers_cpos[pe]++;
+
           gk_ccopy(rlen+1, line, meta_buffers[pe]+meta_buffers_cpos[pe]); 
           meta_buffers_cpos[pe] += rlen + 1;
-          con_buffers_cpos[pe]++;
   
           if (con_buffers_cpos[pe] >= chunksize) 
             break;
@@ -1014,8 +957,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
   
       /* adjust memory if needed */
       if (chunk >= nchunks) {
-        //printf("[%03"PRIDX"] Readjusting nchunks: %"PRIDX"\n", mype, nchunks);
-        nchunks *= 2;
+        nchunks *= 1.2;
         con_chunks_len  = irealloc(con_chunks_len, nchunks, "con_chunks_len");
         meta_chunks_len = irealloc(meta_chunks_len, nchunks, "meta_chunks_len");
         con_chunks  = (idx_t **)gk_realloc(con_chunks, nchunks*sizeof(idx_t *), "con_chunks");
@@ -1047,10 +989,10 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     }
     nchunks = chunk;
   
-    //printf("[%03"PRIDX"] Final nchunks: %"PRIDX"\n", mype, nchunks);
-
     /* done reading the node file */
     if (mype == 0) {
+      printf("[vdata1]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
+
       gk_fclose(fpin);
       
       for (pe=0; pe<npes; pe++) 
@@ -1064,9 +1006,6 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     ASSERT2(nvtxs == isum(nchunks, con_chunks_len, 1));
     lnmeta = isum(nchunks, meta_chunks_len, 1);
 
-    //printf("[%03"PRIDX"] nvtxs: %"PRIDX", lnmeta: %"PRIDX"\n", 
-    //    mype, isum(nchunks, con_chunks_len, 1), lnmeta);
-  
     graph->vmdata_size = lnmeta+nvtxs*idxwidth;
     vmptr  = graph->vmptr  = imalloc(nvtxs+1, "DistDGL_ReadGraph: vmptr");
     vmdata = graph->vmdata = gk_cmalloc(graph->vmdata_size, "DistDGL_ReadGraph: vmdata");
@@ -1089,17 +1028,19 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
 
       gk_free((void **)&con_chunks[chunk], &meta_chunks[chunk], LTERM);
     }
+    gk_free((void **)&con_chunks_len, &meta_chunks_len, LTERM);
+
     ASSERT2(nvtxs == vtxdist[mype+1]-vtxdist[mype]);
 
     /* save the vmdata into a file for now */
     {
       char fileout[256];
-      sprintf(fileout, "vmdata-%d-%"PRIDX".bin", (int)getpid(), mype);
+      sprintf(fileout, "vmdata-p-%d-%"PRIDX".bin", (int)getpid(), mype);
+      gk_cwritefilebin(fileout, (nvtxs+1)*idxwidth, (char *)vmptr);
+      sprintf(fileout, "vmdata-v-%d-%"PRIDX".bin", (int)getpid(), mype);
       gk_cwritefilebin(fileout, graph->vmdata_size, vmdata);
-      gk_free((void **)&graph->vmdata, LTERM);
+      gk_free((void **)&graph->vmptr, &graph->vmdata, LTERM);
     }
-
-    gk_free((void **)&con_chunks_len, &meta_chunks_len, LTERM);
   }
 
 #ifdef XXX
