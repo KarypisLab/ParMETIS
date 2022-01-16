@@ -113,7 +113,8 @@ int DistDGL_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm)
   / Partition the graph 
   /=======================================================================*/
   options[0] = 1;
-  options[1] = 15 + (PARMETIS_DBGLVL_TWOHOP|PARMETIS_DBGLVL_FAST|PARMETIS_DBGLVL_DROPEDGES|PARMETIS_DBGLVL_ONDISK);
+  //options[1] = 15 + (PARMETIS_DBGLVL_TWOHOP|PARMETIS_DBGLVL_FAST|PARMETIS_DBGLVL_DROPEDGES|PARMETIS_DBGLVL_ONDISK);
+  options[1] = 15 + (PARMETIS_DBGLVL_FAST|PARMETIS_DBGLVL_ONDISK);
   options[2] = 1;
   wgtflag = 2;
   numflag = 0;
@@ -688,6 +689,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
 
           /* record the edge in its input direction */
           pe = uu%npes;
+          ASSERT2(coo_buffers_cpos[pe] < chunksize);
           coo_buffers[pe][coo_buffers_cpos[pe]].key1 = u;
           coo_buffers[pe][coo_buffers_cpos[pe]].key2 = v;
           coo_buffers[pe][coo_buffers_cpos[pe]].val  = meta_buffers_cpos[pe];
@@ -705,12 +707,15 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
   
           /* record the edge in its oppositive direction */
           pe = vv%npes;
+          ASSERT2(coo_buffers_cpos[pe] < chunksize);
           coo_buffers[pe][coo_buffers_cpos[pe]].key1 = v;
           coo_buffers[pe][coo_buffers_cpos[pe]].key2 = u;
           coo_buffers[pe][coo_buffers_cpos[pe]].val  = -1;
           coo_buffers_cpos[pe]++;
 
-          if (coo_buffers_cpos[uu%npes] >= chunksize || coo_buffers_cpos[vv%npes] >= chunksize) 
+          /* the chunksize-1 is to account for the cases in which u and v are
+           * assigned to the same pe */
+          if (coo_buffers_cpos[uu%npes] >= chunksize-1 || coo_buffers_cpos[vv%npes] >= chunksize-1) 
             break;
         }
       }
@@ -817,6 +822,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     graph->emdata_size = lnmeta+lnedges*idxwidth;
     emptr  = graph->emptr  = ismalloc(lnedges+1, 0, "DistDGL_ReadGraph: emptr");
     emdata = graph->emdata = gk_cmalloc(graph->emdata_size, "DistDGL_ReadGraph: emdata");
+    memset(emdata, 0, graph->emdata_size);
     for (i=0; i<lnedges; i++) {
       if (lcoo[i].val == -1) {
         emptr[i+1] = emptr[i];
@@ -1009,6 +1015,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
     graph->vmdata_size = lnmeta+nvtxs*idxwidth;
     vmptr  = graph->vmptr  = imalloc(nvtxs+1, "DistDGL_ReadGraph: vmptr");
     vmdata = graph->vmdata = gk_cmalloc(graph->vmdata_size, "DistDGL_ReadGraph: vmdata");
+    memset(vmdata, 0, graph->vmdata_size);
 
     vwgt  = graph->vwgt  = imalloc(nvtxs*(ncon-1), "DistDGL_ReadGraph: vwgt");
     vtype = graph->vtype = imalloc(nvtxs, "DistDGL_ReadGraph: vwgt");
@@ -1022,7 +1029,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
           vwgt[(ncon-1)*nvtxs+j-1] = con_chunks[chunk][(ncon+1)*i+j];
 
         j = strlen(meta_chunks[chunk]+con_chunks[chunk][(ncon+1)*i+ncon])+1;
-        gk_ccopy(j+1, meta_chunks[chunk]+con_chunks[chunk][(ncon+1)*i+ncon], vmdata+vmptr[nvtxs]);
+        gk_ccopy(j, meta_chunks[chunk]+con_chunks[chunk][(ncon+1)*i+ncon], vmdata+vmptr[nvtxs]);
         vmptr[nvtxs+1] = vmptr[nvtxs] + ((j+idxwidth-1)/idxwidth)*idxwidth;  /* pad it to idxwidth muptliples */
       }
 
@@ -1153,7 +1160,7 @@ void DistDGL_WriteGraphs(char *fstem, graph_t *graph, idx_t nparts_per_pe,
     /* copy the nadjncy as this is renumbered */
     icopy(xadj[nvtxs], ngraph->adjncy, adjncy);
 
-    FreeInitialGraphAndRemap(ngraph);
+    FreeInitialGraphAndRemap(&ngraph);
     FreeCtrl(&ctrl);
     gk_free((void **)&cvtxdist, &nadjncy, LTERM);
   }

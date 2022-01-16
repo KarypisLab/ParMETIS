@@ -192,7 +192,7 @@ void InitPartition(ctrl_t *ctrl, graph_t *graph)
 
   icopy(graph->nvtxs, gwhere1+graph->vtxdist[ctrl->mype], graph->where);
 
-  FreeGraph(agraph);
+  FreeGraph(&agraph);
   gkMPI_Comm_free(&ipcomm);
 
   IFSET(ctrl->dbglvl, DBG_TIME, gkMPI_Barrier(ctrl->comm));

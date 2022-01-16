@@ -152,8 +152,8 @@ int ParMETIS_V3_PartGeomKway(idx_t *vtxdist, idx_t *xadj, idx_t *adjncy,
   IFSET(ctrl->dbglvl, DBG_TIME, gkMPI_Barrier(ctrl->gcomm));
   IFSET(ctrl->dbglvl, DBG_INFO, PrintPostPartInfo(ctrl, mgraph, 0));
 
-  FreeGraph(mgraph);
-  FreeInitialGraphAndRemap(graph);
+  FreeGraph(&mgraph);
+  FreeInitialGraphAndRemap(&graph);
 
   if (*numflag > 0)
     ChangeNumbering(vtxdist, xadj, adjncy, part, npes, mype, 0);
@@ -238,7 +238,7 @@ int ParMETIS_V3_PartGeom(idx_t *vtxdist, idx_t *ndims, real_t *xyz, idx_t *part,
 
 
   gk_free((void **)&xadj, (void **)&adjncy, LTERM);
-  FreeInitialGraphAndRemap(graph);
+  FreeInitialGraphAndRemap(&graph);
 
 
 DONE:

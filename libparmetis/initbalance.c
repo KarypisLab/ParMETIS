@@ -349,7 +349,7 @@ void Balance_Partition(ctrl_t *ctrl, graph_t *graph)
   gkMPI_Comm_free(&ipcomm);
 
   agraph->where = NULL;
-  FreeGraph(agraph);
+  FreeGraph(&agraph);
           
   WCOREPOP;
   IFSET(ctrl->dbglvl, DBG_TIME, stoptimer(ctrl->InitPartTmr));

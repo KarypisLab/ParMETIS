@@ -140,7 +140,7 @@ void InitMultisection(ctrl_t *ctrl, graph_t *graph)
                (void *)graph->where, graph->nvtxs, IDX_T, 0, ctrl->comm);
 
   agraph->label = label;
-  FreeGraph(agraph);
+  FreeGraph(&agraph);
 
   gkMPI_Comm_free(&newcomm);
   gkMPI_Comm_free(&labelcomm);

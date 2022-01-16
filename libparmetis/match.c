@@ -1316,12 +1316,25 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
 
       cnedges += nedges;
 
-      /* reset the htable */
-      for (j=cxadj[cnvtxs]; j<cnedges; j++) {
+      /* reset the htable -- reverse order (LIFO) is critical to prevent cadjncy[-1]
+       * indexing due to a remove of an earlier entry */
+      for (j=cnedges-1; j>=cxadj[cnvtxs]; j--) {
         k = cadjncy[j];
         for (kk=k&mask; cadjncy[htable[kk]]!=k; kk=((kk+1)&mask));
         htable[kk] = -1;
       }
+
+#ifdef XXX
+      for (j=cnedges-1; j>=cxadj[cnvtxs]; j--) {
+        k = cadjncy[j];
+        for (kk=k&mask; ; kk=((kk+1)&mask)) {
+          GKASSERT(htable[kk] != -1);
+          if (cadjncy[htable[kk]]==k)
+            break;
+        }
+        htable[kk] = -1;
+      }
+#endif
 
       cxadj[++cnvtxs] = cnedges;
     }
@@ -1613,12 +1626,14 @@ void DropEdges(ctrl_t *ctrl, graph_t *graph)
 
   /* determine the median weight of each adjacency list */
   for (i=0; i<nvtxs; i++) {
+    istart = xadj[i];
+    iend   = xadj[i+1];
+
+    //if (unmatched[i] && iend-istart<3) {
     if (unmatched[i]) {
       medianwgts[i] = 0;
     }
     else {
-      istart = xadj[i];
-      iend   = xadj[i+1];
       for (k=0, j=istart; j<iend; j++, k++) 
         keys[k] = (adjwgt[j]<<8) + noise[i] + noise[adjncy[j]];
 
