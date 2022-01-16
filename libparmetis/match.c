@@ -1316,8 +1316,9 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
 
       cnedges += nedges;
 
-      /* reset the htable */
-      for (j=cxadj[cnvtxs]; j<cnedges; j++) {
+      /* reset the htable -- reverse order (LIFO) is critical to prevent cadjncy[-1]
+       * indexing due to a remove of an earlier entry */
+      for (j=cnedges-1; j>=cxadj[cnvtxs]; j--) {
         k = cadjncy[j];
         for (kk=k&mask; cadjncy[htable[kk]]!=k; kk=((kk+1)&mask));
         htable[kk] = -1;
