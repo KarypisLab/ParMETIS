@@ -602,7 +602,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
   gkMPI_Bcast(&ncon, 1, IDX_T, 0, comm);
 
   printf("[%03"PRIDX"] gnvtxs: %"PRIDX", gnedges: %"PRIDX", ncon: %"PRIDX"\n", 
-      mype, gnvtxs, gnedges, ncon);
+      mype, gnvtxs, gnedges, ncon-1);
 
 
   /* ======================================================= */
