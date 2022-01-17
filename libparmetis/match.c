@@ -1629,8 +1629,7 @@ void DropEdges(ctrl_t *ctrl, graph_t *graph)
     istart = xadj[i];
     iend   = xadj[i+1];
 
-    //if (unmatched[i] && iend-istart<3) {
-    if (unmatched[i]) {
+    if (unmatched[i] && iend-istart<5) {
       medianwgts[i] = 0;
     }
     else {
