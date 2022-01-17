@@ -149,10 +149,12 @@ void InitPartition(ctrl_t *ctrl, graph_t *graph)
 
   gkMPI_Allreduce((void *)gwhere0, (void *)gwhere1, gnvtxs, IDX_T, MPI_SUM, ipcomm);
 
+  /*
   for (i=0; i<gnvtxs; i++) {
     if (gwhere1[i] < 0 || gwhere1[i] >= ctrl->nparts)
       myprintf(ctrl, "gwhere1[%"PRIDX"]=%"PRIDX"\n", i, gwhere1[i]);
   }
+  */
 
   FreeGraph(&agraph);
 

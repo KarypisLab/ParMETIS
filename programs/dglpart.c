@@ -392,6 +392,8 @@ graph_t *DistDGL_MoveGraph(graph_t *graph, idx_t *part, idx_t nparts_per_pe,
   gkMPI_Waitall(nrnbrs, ctrl->rreq, ctrl->statuses);
   gkMPI_Waitall(nsnbrs, ctrl->sreq, ctrl->statuses);
 
+  FreeCommSetupFields(graph);
+
   WCOREPOP;  /* frees sgraph */
 
   /* OK, now go and put the graph into graph_t Format */
@@ -592,6 +594,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
       printf("ERROR: File '%s' contains %"PRIDX"/3 required information.\n", filename, i);
       ier = 1;
     }
+    gk_fclose(fpin);
   }
   if (GlobalSEMaxComm(comm, ier) > 0)
     goto ERROR_EXIT;
@@ -645,7 +648,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
       fsize = 2*gk_getfsize(filename)/nchunks;  /* give it a 2x xtra space */
       fpin = gk_fopen(filename, "r", "DistDGL_ReadGraph: edges.txt");
 
-      printf("[edata0]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
+      //printf("[edata0]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
   
       coo_buffers_cpos  = imalloc(npes, "coo_buffers_cpos");
       meta_buffers_cpos = imalloc(npes, "meta_buflen_cpos");
@@ -760,8 +763,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
 
     /* done reading the edge file */
     if (mype == 0) {
-      printf("[edata1]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
-
+      //printf("[edata1]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
       gk_fclose(fpin);
       
       for (pe=0; pe<npes; pe++) 
@@ -793,7 +795,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
   
       gk_free((void **)&coo_chunks[chunk], &meta_chunks[chunk], LTERM);
     }
-    gk_free((void **)&coo_chunks_len, &meta_chunks_len, LTERM);
+    gk_free((void **)&coo_chunks_len, &coo_chunks, &meta_chunks_len, &meta_chunks, LTERM);
 
     //printf("[%03"PRIDX"] Done with consolidating the chunks into single arrays.\n", mype);
     gkMPI_Barrier(comm);
@@ -898,7 +900,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
       fsize = 2*gk_getfsize(filename)/nchunks;  /* give it a 2x xtra space */
       fpin = gk_fopen(filename, "r", "DistDGL_ReadGraph: nodes.txt");
   
-      printf("[vdata0]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
+      //printf("[vdata0]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
 
       con_buffers_cpos  = imalloc(npes, "con_buffers_cpos");
       meta_buffers_cpos = imalloc(npes, "meta_buflen_cpos");
@@ -996,8 +998,7 @@ graph_t *DistDGL_ReadGraph(char *fstem, MPI_Comm comm)
   
     /* done reading the node file */
     if (mype == 0) {
-      printf("[vdata1]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
-
+      //printf("[vdata1]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
       gk_fclose(fpin);
       
       for (pe=0; pe<npes; pe++) 
