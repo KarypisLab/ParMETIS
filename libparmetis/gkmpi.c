@@ -194,7 +194,6 @@ int gkMPI_Alltoallv(void *sendbuf, idx_t *sendcounts,
     if (sendcounts[i] >= INT_MAX || sdispls[i] >= INT_MAX || 
         recvcounts[i] >= INT_MAX || rdispls[i] >= INT_MAX)
       errexit("MPI_Gatherv message sizes goes over INT_MAX. Use MPI 4.x\n");
-      break;
   }
     
   lsendcounts = gk_imalloc(npes, "lsendcounts");
@@ -252,7 +251,6 @@ int gkMPI_Allgatherv(void *sendbuf, idx_t sendcount, MPI_Datatype sendtype,
   for (i=0; i<npes; i++) { 
     if (sendcount >= INT_MAX || recvcounts[i] >= INT_MAX || rdispls[i] >= INT_MAX)
       errexit("MPI_Allgatherv message sizes goes over INT_MAX. Use MPI 4.x\n");
-      break;
   }
 
   lrecvcounts = gk_imalloc(npes, "lrecvcounts");
@@ -304,7 +302,6 @@ int gkMPI_Scatterv(void *sendbuf, idx_t *sendcounts, idx_t *sdispls,
   for (i=0; i<npes; i++) { 
     if (sendcounts >= INT_MAX || recvcount >= INT_MAX || sdispls[i] >= INT_MAX)
       errexit("MPI_Scatterv message sizes goes over INT_MAX. Use MPI 4.x\n");
-      break;
   }
 
   lsendcounts = gk_imalloc(npes, "lsendcounts");
@@ -356,7 +353,6 @@ int gkMPI_Gatherv(void *sendbuf, idx_t sendcount, MPI_Datatype sendtype,
   for (i=0; i<npes; i++) { 
     if (sendcount >= INT_MAX || recvcounts[i] >= INT_MAX || rdispls[i] >= INT_MAX)
       errexit("MPI_Gatherv message sizes goes over INT_MAX. Use MPI 4.x\n");
-      break;
   }
 
 
