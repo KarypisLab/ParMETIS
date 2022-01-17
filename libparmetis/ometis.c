@@ -158,8 +158,8 @@ int ParMETIS_V32_NodeND(idx_t *vtxdist, idx_t *xadj, idx_t *adjncy, idx_t *vwgt,
   IFSET(dbglvl, DBG_TIME, gkMPI_Barrier(ctrl->gcomm));
 
   gk_free((void **)&morder, LTERM);
-  FreeGraph(mgraph);
-  FreeInitialGraphAndRemap(graph);
+  FreeGraph(&mgraph);
+  FreeInitialGraphAndRemap(&graph);
 
   /* If required, restore the graph numbering */
   if (*numflag > 0) 
@@ -265,7 +265,7 @@ void MultilevelOrder(ctrl_t *ctrl, graph_t *graph, idx_t *order, idx_t *sizes)
   }
 
 
-  FreeGraph(mgraph);
+  FreeGraph(&mgraph);
   gk_free((void **)&perm, (void **)&lastnode, (void **)&porder, (void **)&morder, LTERM);
 
   /* PrintVector(ctrl, 2*npes-1, 0, sizes, "SIZES"); */

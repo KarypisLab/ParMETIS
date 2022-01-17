@@ -36,6 +36,7 @@ void ComputeSerialBalance(ctrl_t *ctrl, graph_t *graph, idx_t *where, real_t *ub
 
   for (i=0; i<graph->nvtxs; i++) {
     for (j=0; j<ncon; j++) {
+      ASSERT(where[i]>=0 && where[i]<nparts);
       pwgts[where[i]*ncon+j] += vwgt[i*ncon+j];
       tvwgts[j] += vwgt[i*ncon+j];
     }
@@ -45,7 +46,7 @@ void ComputeSerialBalance(ctrl_t *ctrl, graph_t *graph, idx_t *where, real_t *ub
   for (j=0; j<ncon; j++) {
     maximb = 0.0;
     for (i=0; i<nparts; i++)
-      maximb =gk_max(maximb, (1.0+(real_t)pwgts[i*ncon+j])/(1.0+(tpwgts[i*ncon+j]*(real_t)tvwgts[j])));
+      maximb = gk_max(maximb, (1.0+(real_t)pwgts[i*ncon+j])/(1.0+(tpwgts[i*ncon+j]*(real_t)tvwgts[j])));
     ubvec[j] = maximb;
   }
 

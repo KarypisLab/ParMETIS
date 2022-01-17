@@ -169,8 +169,9 @@ void InitGraph(graph_t *graph)
 /*! This function deallocates any memory stored in a graph 
 */
 /*************************************************************************/
-void FreeGraph(graph_t *graph) 
+void FreeGraph(graph_t **r_graph) 
 {
+  graph_t *graph = *r_graph;
 
   /* Graph structure fields */
   gk_free((void **)&graph->xadj, 
@@ -185,7 +186,8 @@ void FreeGraph(graph_t *graph)
 
   FreeNonGraphFields(graph); 
 
-  gk_free((void **)&graph, LTERM);
+  gk_free((void **)r_graph, LTERM);
+
 }
 
 
@@ -298,10 +300,11 @@ void FreeCommSetupFields(graph_t *graph)
     adjacency list)
 */
 /*************************************************************************/
-void FreeInitialGraphAndRemap(graph_t *graph) 
+void FreeInitialGraphAndRemap(graph_t **r_graph) 
 {
   idx_t i, nedges;
   idx_t *adjncy, *imap;
+  graph_t *graph = *r_graph;
 
   nedges = graph->nedges;
   adjncy = graph->adjncy;
@@ -326,7 +329,7 @@ void FreeInitialGraphAndRemap(graph_t *graph)
   if (graph->free_vsize)
     gk_free((void **)&graph->vsize, LTERM);
 
-  gk_free((void **)&graph, LTERM);
+  gk_free((void **)r_graph, LTERM);
 }
 
 

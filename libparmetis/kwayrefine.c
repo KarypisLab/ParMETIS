@@ -122,8 +122,7 @@ void ProjectPartition(ctrl_t *ctrl, graph_t *graph)
     }
   }
 
-  FreeGraph(graph->coarser);
-  graph->coarser = NULL;
+  FreeGraph(&(graph->coarser));
 
   WCOREPOP;
 

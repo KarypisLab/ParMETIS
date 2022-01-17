@@ -106,7 +106,7 @@ int ParMETIS_V3_PartKway(idx_t *vtxdist, idx_t *xadj, idx_t *adjncy, idx_t *vwgt
   IFSET(ctrl->dbglvl, DBG_TIME, gkMPI_Barrier(ctrl->gcomm));
   IFSET(ctrl->dbglvl, DBG_INFO, PrintPostPartInfo(ctrl, graph, 0));
 
-  FreeInitialGraphAndRemap(graph);
+  FreeInitialGraphAndRemap(&graph);
 
   if (*numflag > 0) 
     ChangeNumbering(vtxdist, xadj, adjncy, part, npes, mype, 0);

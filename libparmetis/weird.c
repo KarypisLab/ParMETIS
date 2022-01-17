@@ -510,7 +510,7 @@ void PartitionSmallGraph(ctrl_t *ctrl, graph_t *graph)
   }
   gkMPI_Allreduce((void *)lnpwgts, (void *)gnpwgts, nparts*ncon, REAL_T, MPI_SUM, ctrl->comm);
 
-  FreeGraph(agraph);
+  FreeGraph(&agraph);
 
   WCOREPOP;
 

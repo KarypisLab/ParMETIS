@@ -263,11 +263,11 @@ graph_t *SetupGraph(ctrl_t *ctrl, idx_t ncon, idx_t *vtxdist, idx_t *xadj,
 void SetupGraph_nvwgts(ctrl_t *ctrl, graph_t *graph);
 graph_t *CreateGraph(void);
 void InitGraph(graph_t *);
-void FreeGraph(graph_t *graph);
+void FreeGraph(graph_t **graph);
 void FreeNonGraphFields(graph_t *graph);
 void FreeNonGraphNonSetupFields(graph_t *graph);
 void FreeCommSetupFields(graph_t *graph);
-void FreeInitialGraphAndRemap(graph_t *graph);
+void FreeInitialGraphAndRemap(graph_t **graph);
 void graph_WriteToDisk(ctrl_t *ctrl, graph_t *graph);
 void graph_ReadFromDisk(ctrl_t *ctrl, graph_t *graph);
 

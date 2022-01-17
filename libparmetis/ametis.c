@@ -98,7 +98,7 @@ int ParMETIS_V3_AdaptiveRepart(idx_t *vtxdist, idx_t *xadj, idx_t *adjncy,
   IFSET(ctrl->dbglvl, DBG_TIME, gkMPI_Barrier(ctrl->gcomm));
   IFSET(ctrl->dbglvl, DBG_INFO, PrintPostPartInfo(ctrl, graph, 1));
 
-  FreeInitialGraphAndRemap(graph);
+  FreeInitialGraphAndRemap(&graph);
 
   if (*numflag > 0)
     ChangeNumbering(vtxdist, xadj, adjncy, part, npes, mype, 0);

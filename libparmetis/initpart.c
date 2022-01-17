@@ -30,7 +30,6 @@ void InitPartition(ctrl_t *ctrl, graph_t *graph)
   idx_t i, j, ncon, mype, npes, gnvtxs, ngroups;
   idx_t *xadj, *adjncy, *adjwgt, *vwgt;
   idx_t *part, *gwhere0, *gwhere1;
-  idx_t *tmpwhere, *tmpvwgt, *tmpxadj, *tmpadjncy, *tmpadjwgt;
   graph_t *agraph;
   idx_t lnparts, fpart, fpe, lnpes; 
   idx_t twoparts=2, moptions[METIS_NOPTIONS], edgecut, max_cut;
@@ -142,36 +141,47 @@ void InitPartition(ctrl_t *ctrl, graph_t *graph)
           agraph->vwgt, NULL, agraph->adjwgt, &lnparts, tpwgts, NULL, moptions, 
           &edgecut, part);
 
-    for (i=0; i<agraph->nvtxs; i++) 
+    for (i=0; i<agraph->nvtxs; i++) {
+      GKASSERT(fpart+part[i]>=0 && fpart+part[i]<ctrl->nparts);
       gwhere0[agraph->label[i]] = fpart + part[i];
+    }
   }
 
   gkMPI_Allreduce((void *)gwhere0, (void *)gwhere1, gnvtxs, IDX_T, MPI_SUM, ipcomm);
 
-  if (ngroups > 1) {
-    tmpxadj   = agraph->xadj;
-    tmpadjncy = agraph->adjncy;
-    tmpadjwgt = agraph->adjwgt;
-    tmpvwgt   = agraph->vwgt;
-    tmpwhere  = agraph->where;
+  /*
+  for (i=0; i<gnvtxs; i++) {
+    if (gwhere1[i] < 0 || gwhere1[i] >= ctrl->nparts)
+      myprintf(ctrl, "gwhere1[%"PRIDX"]=%"PRIDX"\n", i, gwhere1[i]);
+  }
+  */
 
+  FreeGraph(&agraph);
+
+  if (ngroups > 1) {
+    agraph         = CreateGraph();
+    agraph->nvtxs  = gnvtxs;
+    agraph->nedges = xadj[gnvtxs];
+    agraph->ncon   = ncon;
     agraph->xadj   = xadj;
     agraph->adjncy = adjncy;
     agraph->adjwgt = adjwgt;
     agraph->vwgt   = vwgt;
     agraph->where  = gwhere1;
-    agraph->vwgt   = vwgt;
-    agraph->nvtxs  = gnvtxs;
 
     edgecut = ComputeSerialEdgeCut(agraph);
     ComputeSerialBalance(ctrl, agraph, gwhere1, lbvec);
     lbsum = rsum(ncon, lbvec, 1);
 
+    gk_free((void **)&agraph, LTERM);
+
     gkMPI_Allreduce((void *)&edgecut, (void *)&max_cut,   1, IDX_T,  MPI_MAX, ctrl->gcomm);
     gkMPI_Allreduce((void *)&lbsum,   (void *)&min_lbsum, 1, REAL_T, MPI_MIN, ctrl->gcomm);
 
+    /* if balanced, select using edgecut, otherwise select the most balanced */
     lpesum.sum = lbsum;
-    if (min_lbsum < UNBALANCE_FRACTION*ncon) {
+    if (min_lbsum < UNBALANCE_FRACTION*ncon) { 
+      /* it is balanced, use the edgecut */
       if (lbsum < UNBALANCE_FRACTION*ncon)
         lpesum.sum = edgecut;
       else
@@ -182,17 +192,10 @@ void InitPartition(ctrl_t *ctrl, graph_t *graph)
     gkMPI_Allreduce((void *)&lpesum, (void *)&gpesum, 1, MPI_DOUBLE_INT,
         MPI_MINLOC, ctrl->gcomm);
     gkMPI_Bcast((void *)gwhere1, gnvtxs, IDX_T, gpesum.rank, ctrl->gcomm);
-
-    agraph->xadj   = tmpxadj;
-    agraph->adjncy = tmpadjncy;
-    agraph->adjwgt = tmpadjwgt;
-    agraph->vwgt   = tmpvwgt;
-    agraph->where  = tmpwhere;
   }
-
+ 
   icopy(graph->nvtxs, gwhere1+graph->vtxdist[ctrl->mype], graph->where);
 
-  FreeGraph(agraph);
   gkMPI_Comm_free(&ipcomm);
 
   IFSET(ctrl->dbglvl, DBG_TIME, gkMPI_Barrier(ctrl->comm));

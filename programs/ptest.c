@@ -440,10 +440,10 @@ void TestMoveGraph(graph_t *ograph, graph_t *omgraph, idx_t *part, MPI_Comm comm
   mgraph->vtxdist  = NULL;
   mgraph->xadj     = NULL;
   mgraph->adjncy   = NULL;
-  FreeGraph(mgraph);
+  FreeGraph(&mgraph);
 
   graph->where = NULL;
-  FreeInitialGraphAndRemap(graph);
+  FreeInitialGraphAndRemap(&graph);
   FreeCtrl(&ctrl);
 }  
 
