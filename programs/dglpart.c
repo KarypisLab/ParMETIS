@@ -221,7 +221,7 @@ graph_t *DistDGL_MoveGraph(graph_t *graph, idx_t *part, idx_t nparts_per_pe,
     sprintf(filein, "emdata-p-%d-%"PRIDX".bin", (int)getpid(), mype);
     emptr = (idx_t *)gk_creadfilebin(filein, &size);
     if (size != (graph->nedges+1)*idxwidth) 
-      printf("[%4"PRIDX"] size: %zu != %zu\n", mype, size, (graph->nedges+1)*idxwidth);
+      printf("[%4"PRIDX"] size: %zu != %"PRIDX"\n", mype, size, (graph->nedges+1)*idxwidth);
     gk_rmpath(filein);
 
     sprintf(filein, "emdata-v-%d-%"PRIDX".bin", (int)getpid(), mype);
@@ -233,7 +233,7 @@ graph_t *DistDGL_MoveGraph(graph_t *graph, idx_t *part, idx_t nparts_per_pe,
     sprintf(filein, "vmdata-p-%d-%"PRIDX".bin", (int)getpid(), mype);
     vmptr = (idx_t *)gk_creadfilebin(filein, &size);
     if (size != (nvtxs+1)*idxwidth)
-      printf("[%4"PRIDX"] size: %zu != %zu\n", mype, size, (nvtxs+1)*idxwidth);
+      printf("[%4"PRIDX"] size: %zu != %"PRIDX"\n", mype, size, (nvtxs+1)*idxwidth);
     gk_rmpath(filein);
 
     sprintf(filein, "vmdata-v-%d-%"PRIDX".bin", (int)getpid(), mype);
