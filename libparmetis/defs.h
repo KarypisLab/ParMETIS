@@ -72,7 +72,7 @@
 
 
 #define COARSEN_FRACTION	0.75	/* Node reduction between succesive coarsening levels */
-#define COARSEN_FRACTION2	0.55	/* Node reduction between succesive coarsening levels */
+#define COARSEN_FRACTION2	0.65	/* Node reduction between succesive coarsening levels */
 #define UNBALANCE_FRACTION		1.05
 #define ORDER_UNBALANCE_FRACTION	1.10
 

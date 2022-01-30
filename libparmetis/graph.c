@@ -182,6 +182,7 @@ void FreeGraph(graph_t **r_graph)
          (void **)&graph->adjwgt,
          (void **)&graph->vtxdist, 
          (void **)&graph->home, 
+         (void **)&graph->ndrop, 
          LTERM);
 
   FreeNonGraphFields(graph); 

@@ -95,7 +95,7 @@ typedef struct graph_t {
   idx_t *cmap;
 
   /* Dropedges */
-  idx_t *unmatched;  /* used to mark the coarse vertices that resulted from match[u]=u */
+  idx_t *ndrop;  /* stores how many edges to be dropped for each coarser vertex */
 
   /* Used during initial partitioning */
   idx_t *label;

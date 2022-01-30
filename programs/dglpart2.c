@@ -87,14 +87,14 @@ int DGLPart_GPart(char *fstem, idx_t nparts, MPI_Comm comm)
     return EXIT_FAILURE;
 
   /* Report peak memory use before partitioning */
-  for (i=npes-1; i>=0; i--) {
-    if (i == mype && mype == npes-1)
-      printf("\n-------------------------------------------------------\n");
-    if (i == mype) 
-      printf("[%03"PRIDX"] proc/self/stat/VmPeak:     %.2f MB\n", mype, (float)gk_GetProcVmPeak()/(1024.0*1024.0));
-    if (i == 0 && mype == 0)
-      printf("-------------------------------------------------------\n");
-    fflush(stdout);
+  {
+    idx_t max = GlobalSEMaxComm(comm, gk_GetProcVmPeak());
+    idx_t sum = GlobalSESumComm(comm, gk_GetProcVmPeak());
+    if (mype == 0) {
+      printf("\nproc/self/stat/VmPeak:\n\tMax: %7.2fMB, Sum: %7.2fMB, Balance: %4.3f\n", 
+          (float)max/(1024.0*1024.0), (float)sum/(1024.0*1024.0), 1.0*npes*max/sum);
+      fflush(stdout);
+    }
     gkMPI_Barrier(comm);
   }
 
@@ -103,6 +103,7 @@ int DGLPart_GPart(char *fstem, idx_t nparts, MPI_Comm comm)
   /=======================================================================*/
   options[0] = 1;
   options[1] = 15 + (PARMETIS_DBGLVL_TWOHOP|PARMETIS_DBGLVL_FAST|PARMETIS_DBGLVL_DROPEDGES|PARMETIS_DBGLVL_ONDISK);
+  //options[1] = 15 + (PARMETIS_DBGLVL_TWOHOP|PARMETIS_DBGLVL_FAST|PARMETIS_DBGLVL_ONDISK);
   options[2] = 1;
   wgtflag = 2;
   numflag = 0;
@@ -124,14 +125,14 @@ int DGLPart_GPart(char *fstem, idx_t nparts, MPI_Comm comm)
 
 
   /* Report peak memory use after partitioning */
-  for (i=npes-1; i>=0; i--) {
-    if (i == mype && mype == npes-1)
-      printf("\n-------------------------------------------------------\n");
-    if (i == mype) 
-      printf("[%03"PRIDX"] proc/self/stat/VmPeak:     %.2f MB\n", mype, (float)gk_GetProcVmPeak()/(1024.0*1024.0));
-    if (i == 0 && mype == 0)
-      printf("-------------------------------------------------------\n");
-    fflush(stdout);
+  {
+    idx_t max = GlobalSEMaxComm(comm, gk_GetProcVmPeak());
+    idx_t sum = GlobalSESumComm(comm, gk_GetProcVmPeak());
+    if (mype == 0) {
+      printf("\nproc/self/stat/VmPeak:\n\tMax: %7.2fMB, Sum: %7.2fMB, Balance: %4.3f\n", 
+          (float)max/(1024.0*1024.0), (float)sum/(1024.0*1024.0), 1.0*npes*max/sum);
+      fflush(stdout);
+    }
     gkMPI_Barrier(comm);
   }
 
@@ -213,8 +214,11 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
   gkMPI_Bcast(&gnedges, 1, IDX_T, 0, comm);
   gkMPI_Bcast(&ncon, 1, IDX_T, 0, comm);
 
-  printf("[%03"PRIDX"] gnvtxs: %"PRIDX", gnedges: %"PRIDX", ncon: %"PRIDX"\n", 
-      mype, gnvtxs, gnedges, ncon-1);
+  if (mype == 0) {
+    printf("gnvtxs: %"PRIDX", gnedges: %"PRIDX", ncon: %"PRIDX"\n", gnvtxs, gnedges, ncon-1);
+    fflush(stdout);
+  }
+  gkMPI_Barrier(comm);
 
 
   /* ======================================================= */
