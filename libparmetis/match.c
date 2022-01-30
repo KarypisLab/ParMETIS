@@ -364,7 +364,7 @@ void Match_Global0(ctrl_t *ctrl, graph_t *graph)
 /*************************************************************************/
 /*! Finds a HEM matching involving both local and remote vertices */
 /*************************************************************************/
-void Match_Global(ctrl_t *ctrl, graph_t *graph)
+void Match_Global1(ctrl_t *ctrl, graph_t *graph)
 {
   idx_t h, i, ii, j, jj, k, v;
   idx_t nnbrs, nvtxs, ncon, cnvtxs, firstvtx, lastvtx, maxi, maxidx, nkept;
@@ -672,7 +672,7 @@ void Match_Global(ctrl_t *ctrl, graph_t *graph)
     }
     SHIFTCSR(i, rnvtxs, rxadj);
 
-    idx_t avgdegree = xadj[nvtxs]/nvtxs;
+    idx_t avgdegree = xadj[nvtxs]/(2*nvtxs);
     for (nchanged=0, ii=nmatched; ii<nvtxs; ii++) {
       i = perm[ii];
       if (match[i] == UNMATCHED && xadj[i+1]-xadj[i] <= avgdegree) {  
@@ -695,6 +695,433 @@ void Match_Global(ctrl_t *ctrl, graph_t *graph)
           }
           if (maxi) 
             break;
+        }
+      }
+    }
+
+    for (i=0; i<nchanged; i++) {
+      ii = iperm[changed[i]];
+      perm[ii] = perm[nmatched];
+      iperm[perm[nmatched]] = ii;
+      nmatched++;
+    }
+
+    CommChangedInterfaceData(ctrl, graph, nchanged, changed, match, 
+        match_requests, match_granted);
+
+    WCOREPOP;
+  }
+
+  /* Traverse the vertices and those that were unmatched, match them with themselves */
+  cnvtxs = 0;
+  for (i=0; i<nvtxs; i++) {
+    if (match[i] == UNMATCHED || match[i] == TOO_HEAVY) {
+      match[i] = (firstvtx+i) + KEEP_BIT;
+      cnvtxs++;
+    }
+    else if (match[i] >= KEEP_BIT) {  /* A matched vertex which I get to keep */
+      cnvtxs++;
+    }
+  }
+
+  if (ctrl->dbglvl&DBG_MATCHINFO) {
+    PrintVector2(ctrl, nvtxs, firstvtx, match, "Match");
+    myprintf(ctrl, "Cnvtxs: %"PRIDX"\n", cnvtxs);
+    rprintf(ctrl, "Done with matching...\n");
+  }
+
+  WCOREPOP;
+
+  IFSET(ctrl->dbglvl, DBG_TIME, gkMPI_Barrier(ctrl->comm));
+  IFSET(ctrl->dbglvl, DBG_TIME, stoptimer(ctrl->MatchTmr));
+  IFSET(ctrl->dbglvl, DBG_TIME, starttimer(ctrl->ContractTmr));
+
+  CreateCoarseGraph_Global(ctrl, graph, cnvtxs);
+
+  if (ctrl->dropedges) 
+    DropEdges(ctrl, graph->coarser);
+
+  IFSET(ctrl->dbglvl, DBG_TIME, gkMPI_Barrier(ctrl->comm));
+  IFSET(ctrl->dbglvl, DBG_TIME, stoptimer(ctrl->ContractTmr));
+}
+
+
+/*************************************************************************/
+/*! Finds a HEM matching involving both local and remote vertices */
+/*************************************************************************/
+void Match_Global(ctrl_t *ctrl, graph_t *graph)
+{
+  idx_t h, i, ii, j, jj, k, v;
+  idx_t nnbrs, nvtxs, ncon, cnvtxs, firstvtx, lastvtx, maxi, maxidx, nkept;
+  idx_t otherlastvtx, nrequests, nchanged, pass, nmatched, wside;
+  idx_t *xadj, *adjncy, *adjwgt, *vtxdist, *home, *myhome;
+  idx_t *match;
+  idx_t *peind, *sendptr, *recvptr;
+  idx_t *perm, *iperm, *nperm, *changed;
+  real_t *nvwgt, maxnvwgt;
+  idx_t *nreqs_pe;
+  ikv_t *match_requests, *match_granted, *pe_requests;
+  idx_t last_unmatched;
+
+  WCOREPUSH;
+
+  maxnvwgt = 0.5/((real_t)(ctrl->CoarsenTo));
+
+  graph->match_type = PARMETIS_MTYPE_GLOBAL;
+
+  IFSET(ctrl->dbglvl, DBG_TIME, gkMPI_Barrier(ctrl->comm));
+  IFSET(ctrl->dbglvl, DBG_TIME, starttimer(ctrl->MatchTmr));
+
+  nvtxs   = graph->nvtxs;
+  ncon    = graph->ncon;
+  xadj    = graph->xadj;
+  adjncy  = graph->adjncy;
+  adjwgt  = graph->adjwgt;
+  home    = graph->home;
+  nvwgt   = graph->nvwgt;
+
+  vtxdist  = graph->vtxdist;
+  firstvtx = vtxdist[ctrl->mype];
+  lastvtx  = vtxdist[ctrl->mype+1];
+
+  nnbrs   = graph->nnbrs;
+  peind   = graph->peind;
+  sendptr = graph->sendptr;
+  recvptr = graph->recvptr;
+
+  match  = graph->match = ismalloc(nvtxs+graph->nrecv, UNMATCHED, "GlobalMatch: match");
+
+  /* wspacemalloc'ed arrays */
+  myhome   = iset(nvtxs+graph->nrecv, UNMATCHED, iwspacemalloc(ctrl, nvtxs+graph->nrecv));
+  nreqs_pe = iset(nnbrs, 0, iwspacemalloc(ctrl, nnbrs));
+  perm     = iwspacemalloc(ctrl, nvtxs);
+  iperm    = iwspacemalloc(ctrl, nvtxs);
+  nperm    = iwspacemalloc(ctrl, nnbrs);
+  changed  = iwspacemalloc(ctrl, nvtxs);
+
+  match_requests = ikvwspacemalloc(ctrl, graph->nsend);
+  match_granted  = ikvwspacemalloc(ctrl, graph->nrecv);
+
+
+  /* create the traversal order */
+  FastRandomPermute(nvtxs, perm, 1);
+  for (i=0; i<nvtxs; i++)
+    iperm[perm[i]] = i;
+  iincset(nnbrs, 0, nperm);
+
+  /* if coasening for adaptive/repartition, exchange home information */
+  if (ctrl->partType == ADAPTIVE_PARTITION || ctrl->partType == REFINE_PARTITION) {
+    PASSERT(ctrl, home != NULL);
+    icopy(nvtxs, home, myhome);
+    CommInterfaceData(ctrl, graph, myhome, myhome+nvtxs);
+  }
+
+  /* if coarsening for ordering, replace home with where information */
+  if (ctrl->partType == ORDER_PARTITION) {
+    PASSERT(ctrl, graph->where != NULL);
+    icopy(nvtxs, graph->where, myhome);
+    CommInterfaceData(ctrl, graph, myhome, myhome+nvtxs);
+  }
+
+
+  /* mark all heavy vertices as TOO_HEAVY so they will not be matched */
+  for (nchanged=i=0; i<nvtxs; i++) {
+    for (h=0; h<ncon; h++) {
+      if (nvwgt[i*ncon+h] > maxnvwgt) {
+        match[i] = TOO_HEAVY;
+        nchanged++;
+        break;
+      }
+    }
+  }
+
+  /* If no heavy vertices, pick one at random and treat it as such so that
+     at the end of the matching each partition will still have one vertex.
+     This is to eliminate the cases in which once a matching has been 
+     computed, a processor ends up having no vertices */
+  if (nchanged == 0) 
+    match[RandomInRange(nvtxs)] = TOO_HEAVY;
+
+  CommInterfaceData(ctrl, graph, match, match+nvtxs);
+
+
+  /* set initial value of nkept based on how over/under weight the
+     partition is to begin with */
+  nkept = graph->gnvtxs/ctrl->npes - nvtxs;
+
+
+  /* Find a matching by doing multiple iterations */
+  for (nmatched=pass=0; pass<NMATCH_PASSES; pass++) {
+    wside = (graph->level+pass)%2;
+    nchanged = nrequests = 0;
+    for (last_unmatched=ii=nmatched; ii<nvtxs; ii++) {
+      i = perm[ii];
+      if (match[i] == UNMATCHED) {  /* Unmatched */
+        maxidx = i;
+        maxi   = -1;
+
+        /* Deal with islands. Find another vertex and match it with */
+        if (xadj[i] == xadj[i+1]) {
+          last_unmatched = gk_max(ii, last_unmatched)+1;
+          for (; last_unmatched<nvtxs; last_unmatched++) {
+            k = perm[last_unmatched];
+            if (match[k] == UNMATCHED && myhome[i] == myhome[k]) {
+              match[i] = firstvtx+k + (i <= k ? KEEP_BIT : 0);
+              match[k] = firstvtx+i + (i >  k ? KEEP_BIT : 0);
+              changed[nchanged++] = i;
+              changed[nchanged++] = k;
+              break;
+            }
+          }
+          continue;
+        }
+
+        /* Find a heavy-edge matching */
+        for (j=xadj[i]; j<xadj[i+1]; j++) {
+          k = adjncy[j];
+          if (match[k] == UNMATCHED && myhome[k] == myhome[i]) { 
+            if (ncon == 1) {
+              if (maxi == -1 || adjwgt[maxi] < adjwgt[j] ||
+                  (adjwgt[maxi] == adjwgt[j] && RandomInRange(xadj[i+1]-xadj[i]) == 0)) {
+                maxi   = j;
+                maxidx = k;
+              }
+            }
+            else {
+              if (maxi == -1 || adjwgt[maxi] < adjwgt[j] ||
+                  (adjwgt[maxi] == adjwgt[j] && maxidx < nvtxs && k < nvtxs &&
+                   BetterVBalance(ncon,nvwgt+i*ncon,nvwgt+maxidx*ncon,nvwgt+k*ncon) >= 0)) {
+                maxi   = j;
+                maxidx = k;
+              }
+            }
+          }
+        }
+
+        if (maxi != -1) {
+          k = adjncy[maxi];
+          if (k < nvtxs) { /* Take care the local vertices first */
+            /* Here we give preference the local matching by granting it right away */
+            match[i] = firstvtx+k + (i <= k ? KEEP_BIT : 0);
+            match[k] = firstvtx+i + (i >  k ? KEEP_BIT : 0);
+            changed[nchanged++] = i;
+            changed[nchanged++] = k;
+          }
+          else { /* Take care any remote boundary vertices */
+            match[k] = MAYBE_MATCHED;
+            /* Alternate among which vertices will issue the requests */
+            if ((wside == 0 && firstvtx+i < graph->imap[k]) || 
+                (wside == 1 && firstvtx+i > graph->imap[k])) { 
+              match[i] = MAYBE_MATCHED;
+              match_requests[nrequests].key = graph->imap[k];
+              match_requests[nrequests].val = firstvtx+i;
+              nrequests++;
+            }
+          }
+        }
+      }
+    }
+
+
+    /***********************************************************
+    * Exchange the match_requests, requests for me are stored in
+    * match_granted 
+    ************************************************************/
+    /* Issue the receives first. Note that from each PE can receive a maximum
+       of the interface node that it needs to send it in the case of a mat-vec */
+    for (i=0; i<nnbrs; i++) {
+      gkMPI_Irecv((void *)(match_granted+recvptr[i]), 2*(recvptr[i+1]-recvptr[i]), IDX_T,
+                peind[i], 1, ctrl->comm, ctrl->rreq+i);
+    }
+
+    /* Issue the sends next. This needs some work */
+    ikvsorti(nrequests, match_requests);
+    for (j=i=0; i<nnbrs; i++) {
+      otherlastvtx = vtxdist[peind[i]+1];
+      for (k=j; k<nrequests && match_requests[k].key < otherlastvtx; k++);
+      gkMPI_Isend((void *)(match_requests+j), 2*(k-j), IDX_T, peind[i], 1, 
+          ctrl->comm, ctrl->sreq+i);
+      j = k;
+    }
+
+    /* OK, now get into the loop waiting for the operations to finish */
+    gkMPI_Waitall(nnbrs, ctrl->rreq, ctrl->statuses);
+    for (i=0; i<nnbrs; i++) {
+      gkMPI_Get_count(ctrl->statuses+i, IDX_T, nreqs_pe+i);
+      nreqs_pe[i] = nreqs_pe[i]/2;  /* Adjust for pairs of IDX_T */
+    }
+    gkMPI_Waitall(nnbrs, ctrl->sreq, ctrl->statuses);
+
+
+    /***********************************************************
+    * Now, go and service the requests that you received in 
+    * match_granted 
+    ************************************************************/
+    RandomPermute(nnbrs, nperm, 0);
+    for (ii=0; ii<nnbrs; ii++) {
+      i = nperm[ii];
+      pe_requests = match_granted+recvptr[i];
+      for (j=0; j<nreqs_pe[i]; j++) {
+        k = pe_requests[j].key;
+        PASSERTP(ctrl, k >= firstvtx && k < lastvtx, (ctrl, "%"PRIDX" %"PRIDX" %"PRIDX" %"PRIDX" %"PRIDX"\n", firstvtx, lastvtx, k, j, peind[i]));
+        /* myprintf(ctrl, "Requesting a match %"PRIDX" %"PRIDX"\n", pe_requests[j].key, pe_requests[j].val); */
+        if (match[k-firstvtx] == UNMATCHED) { /* Bingo, lets grant this request */
+          changed[nchanged++] = k-firstvtx;
+          if (nkept >= 0) { /* decide who to keep it based on local balance */
+            match[k-firstvtx] = pe_requests[j].val + KEEP_BIT;
+            nkept--;
+          }
+          else {
+            match[k-firstvtx] = pe_requests[j].val;
+            pe_requests[j].key += KEEP_BIT;
+            nkept++;
+          }
+          /* myprintf(ctrl, "Request from pe:%"PRIDX" (%"PRIDX" %"PRIDX") granted!\n", peind[i], pe_requests[j].val, pe_requests[j].key); */ 
+        }
+        else { /* We are not granting the request */
+          /* myprintf(ctrl, "Request from pe:%"PRIDX" (%"PRIDX" %"PRIDX") not granted!\n", peind[i], pe_requests[j].val, pe_requests[j].key); */ 
+          pe_requests[j].key = UNMATCHED;
+        }
+      }
+    }
+
+
+    /***********************************************************
+    * Exchange the match_granted information. It is stored in
+    * match_requests 
+    ************************************************************/
+    /* Issue the receives first. Note that from each PE can receive a maximum
+       of the interface node that it needs to send during the case of a mat-vec */
+    for (i=0; i<nnbrs; i++) {
+      gkMPI_Irecv((void *)(match_requests+sendptr[i]), 2*(sendptr[i+1]-sendptr[i]), IDX_T,
+                peind[i], 1, ctrl->comm, ctrl->rreq+i);
+    }
+
+    /* Issue the sends next. */
+    for (i=0; i<nnbrs; i++) {
+      gkMPI_Isend((void *)(match_granted+recvptr[i]), 2*nreqs_pe[i], IDX_T, 
+                peind[i], 1, ctrl->comm, ctrl->sreq+i);
+    }
+
+    /* OK, now get into the loop waiting for the operations to finish */
+    gkMPI_Waitall(nnbrs, ctrl->rreq, ctrl->statuses);
+    for (i=0; i<nnbrs; i++) {
+      gkMPI_Get_count(ctrl->statuses+i, IDX_T, nreqs_pe+i);
+      nreqs_pe[i] = nreqs_pe[i]/2;  /* Adjust for pairs of IDX_T */
+    }
+    gkMPI_Waitall(nnbrs, ctrl->sreq, ctrl->statuses);
+
+
+    /***********************************************************
+    * Now, go and through the match_requests and update local
+    * match information for the matchings that were granted.
+    ************************************************************/
+    for (i=0; i<nnbrs; i++) {
+      pe_requests = match_requests+sendptr[i];
+      for (j=0; j<nreqs_pe[i]; j++) {
+        match[pe_requests[j].val-firstvtx] = pe_requests[j].key;
+        if (pe_requests[j].key != UNMATCHED)
+          changed[nchanged++] = pe_requests[j].val-firstvtx;
+      }
+    }
+
+    for (i=0; i<nchanged; i++) {
+      ii = iperm[changed[i]];
+      perm[ii] = perm[nmatched];
+      iperm[perm[nmatched]] = ii;
+      nmatched++;
+    }
+
+    CommChangedInterfaceData(ctrl, graph, nchanged, changed, match, 
+        match_requests, match_granted);
+  }
+
+
+  /* Find a two-hop matching */
+  if (ctrl->twohop) {
+    WCOREPUSH;
+
+    /* create the "transposed" adjancency list that includes remote vertices */
+    idx_t rnvtxs   = nvtxs+graph->nrecv;
+    idx_t *rxadj   = iset(rnvtxs+1, 0, iwspacemalloc(ctrl, rnvtxs+1));
+    idx_t *radjncy = iwspacemalloc(ctrl, xadj[nvtxs]);
+    for (i=0; i<nvtxs; i++) {
+      for (j=xadj[i]; j<xadj[i+1]; j++) {
+        rxadj[adjncy[j]]++;
+      }
+    }
+    MAKECSR(i, rnvtxs, rxadj);
+    for (i=0; i<nvtxs; i++) {
+      for (j=xadj[i]; j<xadj[i+1]; j++)
+        radjncy[rxadj[adjncy[j]]++] = i;
+    }
+    SHIFTCSR(i, rnvtxs, rxadj);
+
+    /* sort the unmatched nodes in increasing degree and use that as the
+       traversal order for matching purposes */
+    idx_t ncand = 0;;
+    ikv_t *cand = ikvwspacemalloc(ctrl, nvtxs-nmatched); 
+    for (ii=nmatched; ii<nvtxs; ii++) {
+      i = perm[ii];
+      if (match[i] == UNMATCHED) {
+        cand[ncand].key = xadj[i+1]-xadj[i];
+        cand[ncand].val = i;
+        ncand++;
+      }
+    }
+    ikvsorti(ncand, cand);
+
+    for (nchanged=0, ii=0; ii<ncand; ii++) {
+      i = cand[ii].val;
+      if (match[i] == UNMATCHED) {  
+        /* two-hop -- matched pair will be local but intermediate can be remote */ 
+        for (maxi=0, j=xadj[i]; j<xadj[i+1]; j++) {
+          v = adjncy[j];
+          for (jj=rxadj[v]; jj<rxadj[v+1]; jj++) {
+            k = radjncy[jj];
+            if (k != i && match[k] == UNMATCHED) {
+              match[i] = firstvtx+k + (i <= k ? KEEP_BIT : 0);
+              match[k] = firstvtx+i + (i >  k ? KEEP_BIT : 0);
+              changed[nchanged++] = i;
+              changed[nchanged++] = k;
+              maxi = 1;
+              break;
+            }
+          }
+          if (maxi) 
+            break;
+        }
+      }
+    }
+
+    /* fill the gap by matching pairs of low-degree nodes that are not connected */
+    if (1) {
+      idx_t gap2goal = ((idx_t)(2.0*(1.0-COARSEN_FRACTION2)*(real_t)nvtxs)) - nmatched - nchanged; 
+
+      if (gap2goal > 0) {
+        for (k=0, ii=0; ii<ncand; ii++) {
+          if (match[cand[ii].val] == UNMATCHED)
+            cand[k++] = cand[ii];
+        }
+        ncand = k;
+  
+        for (ii=0; ii<ncand; ii++) {
+          i = cand[ii].val;
+          if (match[i] == UNMATCHED) {  
+            for (jj=ii+1; jj<ncand; jj++) {
+              k = cand[jj].val;
+              if (match[k] == UNMATCHED) {
+                match[i] = firstvtx+k + (i <= k ? KEEP_BIT : 0);
+                match[k] = firstvtx+i + (i >  k ? KEEP_BIT : 0);
+                changed[nchanged++] = i;
+                changed[nchanged++] = k;
+                gap2goal -= 2;
+                break;
+              }
+            }
+            if (gap2goal <= 0)
+              break;
+          }
         }
       }
     }
@@ -1191,7 +1618,7 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
   if (where != NULL)
     cwhere = cgraph->where = imalloc(cnvtxs, "CreateCoarserGraph: cwhere");
   if (ctrl->dropedges)
-    cgraph->unmatched = imalloc(cnvtxs, "CreateCoarserGraph: cgraph->unmatched");
+    cgraph->ndrop = ismalloc(cnvtxs, 0, "CreateCoarserGraph: cgraph->ndrop");
 
   /* these are just upper bound estimates for now */
   cadjncy = iwspacemalloc(ctrl, nkeepsize+nrecvsize);
@@ -1213,9 +1640,6 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
       if (u>=firstvtx && u<lastvtx && v > u) 
         continue;  /* I have already collapsed it as (u,v) */
 
-      if (ctrl->dropedges) 
-        cgraph->unmatched[cnvtxs] = (v == u ? 1 : 0); 
-
       /* determine the maximum length of the combined adjacency list 
          and the size of the required htable */
       maxclen = xadj[i+1]-xadj[i];
@@ -1224,7 +1648,12 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
           maxclen += xadj[u-firstvtx+1]-xadj[u-firstvtx];
         else /* remote vertex */
           maxclen += rgraph[perm[BSearch(graph->nrecv, recvind, u)]];
+
+        /* save this, as you will need it later */ 
+        if (ctrl->dropedges) 
+          cgraph->ndrop[cnvtxs] = maxclen; 
       }
+
       for (maxclen*=2, htsize=1; htsize<maxclen; htsize*=2);
       mask = htsize-1;
       if (maxhtsize < htsize) {
@@ -1262,7 +1691,7 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
       }
 
       /* Collapse the u vertex next */
-      if (v != u) { 
+      if (v != u) {
         if (u>=firstvtx && u<lastvtx) { /* Local vertex */
           u -= firstvtx;
           for (h=0; h<ncon; h++)
@@ -1312,6 +1741,11 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
             }
           }
         }
+
+        /* determine the number of edges that you need to drop so that
+           nedges = (|adj(u)|+|adj(v)|)/2 */
+        if (ctrl->dropedges) 
+          cgraph->ndrop[cnvtxs] = gk_max(0, nedges-(cgraph->ndrop[cnvtxs]>>1)); 
       }
 
       cnedges += nedges;
@@ -1596,19 +2030,19 @@ void CreateCoarseGraph_Local(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
 void DropEdges(ctrl_t *ctrl, graph_t *graph)
 {
   idx_t i, ii, j, k, istart, iend, nvtxs, maxdegree;
-  idx_t *xadj, *adjncy, *adjwgt, *imap, *unmatched;
+  idx_t *xadj, *adjncy, *adjwgt, *imap, *ndrop;
   idx_t *noise, *medianwgts, *keys;
 
   WCOREPUSH;
 
   CommSetup(ctrl, graph);
 
-  nvtxs     = graph->nvtxs;
-  xadj      = graph->xadj;
-  adjncy    = graph->adjncy;
-  adjwgt    = graph->adjwgt;
-  unmatched = graph->unmatched;
-  imap      = graph->imap;
+  nvtxs  = graph->nvtxs;
+  xadj   = graph->xadj;
+  adjncy = graph->adjncy;
+  adjwgt = graph->adjwgt;
+  ndrop  = graph->ndrop;
+  imap   = graph->imap;
 
   //myprintf(ctrl, ">nedges: %"PRIDX"\n", xadj[nvtxs]);
 
@@ -1621,7 +2055,7 @@ void DropEdges(ctrl_t *ctrl, graph_t *graph)
   keys       = iwspacemalloc(ctrl, maxdegree+1);
 
   for (i=0; i<nvtxs; i++)
-    noise[i] = RandomInRange(128);
+    noise[i] = RandomInRange(1021);
   CommInterfaceData(ctrl, graph, noise, noise+nvtxs);
 
   /* determine the median weight of each adjacency list */
@@ -1629,15 +2063,15 @@ void DropEdges(ctrl_t *ctrl, graph_t *graph)
     istart = xadj[i];
     iend   = xadj[i+1];
 
-    if (unmatched[i] && iend-istart<5) {
+    if (ndrop[i] == 0 || iend-istart < 5) {
       medianwgts[i] = 0;
     }
     else {
       for (k=0, j=istart; j<iend; j++, k++) 
-        keys[k] = (adjwgt[j]<<8) + noise[i] + noise[adjncy[j]];
+        keys[k] = (adjwgt[j]<<11) + noise[i] + noise[adjncy[j]];
 
-      isortd(k, keys);
-      medianwgts[i] = keys[(k>>1)];
+      isorti(k, keys);
+      medianwgts[i] = keys[ndrop[i]];
     }
   }
   CommInterfaceData(ctrl, graph, medianwgts, medianwgts+nvtxs);
@@ -1648,7 +2082,7 @@ void DropEdges(ctrl_t *ctrl, graph_t *graph)
     iend   = xadj[i+1];
     for (j=istart; j<iend; j++) {
       ii = adjncy[j];
-      if ((adjwgt[j]<<8) + noise[i] + noise[ii] >= gk_min(medianwgts[i], medianwgts[ii])) {
+      if ((adjwgt[j]<<11) + noise[i] + noise[ii] >= gk_min(medianwgts[i], medianwgts[ii])) {
         adjncy[k]   = imap[adjncy[j]]; /* keep and switch to global ID space */
         adjwgt[k++] = adjwgt[j];
       }
@@ -1661,7 +2095,7 @@ void DropEdges(ctrl_t *ctrl, graph_t *graph)
 
   //myprintf(ctrl, "<nedges: %"PRIDX"\n", xadj[nvtxs]);
 
-  gk_free((void **)&graph->unmatched, LTERM);
+  gk_free((void **)&graph->ndrop, LTERM);
 
   FreeCommSetupFields(graph);
   

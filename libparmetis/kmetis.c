@@ -146,13 +146,21 @@ void Global_Partition(ctrl_t *ctrl, graph_t *graph)
   lbvec = rwspacemalloc(ctrl, ncon);
 
   if (ctrl->dbglvl&DBG_PROGRESS) {
-    rprintf(ctrl, "[%6"PRIDX" %8"PRIDX" %5"PRIDX" %5"PRIDX"] [%"PRIDX"] [", graph->gnvtxs, GlobalSESum(ctrl, graph->nedges),
-	    GlobalSEMin(ctrl, graph->nvtxs), GlobalSEMax(ctrl, graph->nvtxs), ctrl->CoarsenTo);
+    idx_t j, nledges=0;
+    for (j=0; j<graph->nedges; j++) {
+      if (graph->adjncy[j] < graph->nvtxs)
+        nledges++;
+    }
+    rprintf(ctrl, "[%10"PRIDX" %10"PRIDX" %10"PRIDX" %10"PRIDX"] [%.2"PRREAL"] [%"PRIDX"] [", 
+        graph->gnvtxs, GlobalSESum(ctrl, graph->nedges),
+        GlobalSESumFloat(ctrl, 1.0*nledges/graph->nedges)/ctrl->npes,
+	GlobalSEMin(ctrl, graph->nvtxs), GlobalSEMax(ctrl, graph->nvtxs), 
+        ctrl->CoarsenTo);
     for (i=0; i<ncon; i++)
-      rprintf(ctrl, " %.3"PRREAL"", GlobalSEMinFloat(ctrl,graph->nvwgt[rargmin_strd(graph->nvtxs, graph->nvwgt+i, ncon)*ncon+i]));  
+      rprintf(ctrl, " %.2"PRREAL"", GlobalSEMinFloat(ctrl,graph->nvwgt[rargmin_strd(graph->nvtxs, graph->nvwgt+i, ncon)*ncon+i]));  
     rprintf(ctrl, "] [");
     for (i=0; i<ncon; i++)
-      rprintf(ctrl, " %.3"PRREAL"", GlobalSEMaxFloat(ctrl, graph->nvwgt[rargmax_strd(graph->nvtxs, graph->nvwgt+i, ncon)*ncon+i]));  
+      rprintf(ctrl, " %.2"PRREAL"", GlobalSEMaxFloat(ctrl, graph->nvwgt[rargmax_strd(graph->nvtxs, graph->nvwgt+i, ncon)*ncon+i]));  
     rprintf(ctrl, "]\n");
   }
 
