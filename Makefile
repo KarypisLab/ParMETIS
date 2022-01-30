@@ -5,6 +5,7 @@ assert     = not-set
 assert2    = not-set
 debug      = not-set
 openmp     = not-set
+valgrind   = not-set
 shared     = not-set
 prefix     = ~/local
 gklib_path = ~/local
@@ -45,6 +46,9 @@ ifneq ($(debug), not-set)
 endif
 ifneq ($(openmp), not-set)
     CONFIG_FLAGS += -DOPENMP=$(openmp)
+endif
+ifneq ($(valgrind), not-set)
+    CONFIG_FLAGS += -DVALGRIND=$(valgrind)
 endif
 ifneq ($(shared), not-set)
     CONFIG_FLAGS += -DSHARED=1
