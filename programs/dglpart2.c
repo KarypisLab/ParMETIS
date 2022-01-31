@@ -158,7 +158,7 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
   idx_t gnvtxs, gnedges, nvtxs, ncon; 
   idx_t *vtxdist, *xadj, *adjncy, *vwgt, *vtype;
   MPI_Status stat;
-  ssize_t rlen, fsize;
+  ssize_t rlen;
   size_t lnlen=0;
   char *filename=NULL, *line=NULL;
   FILE *fpin=NULL;
@@ -254,11 +254,8 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
     nlinesread = 0;
     if (mype == 0) {
       sprintf(filename, "%s_edges.txt", fstem);
-      fsize = 2*gk_getfsize(filename)/nchunks;  /* give it a 2x xtra space */
       fpin = gk_fopen(filename, "r", "DGLPart_ReadGraph: edges.txt");
 
-      //printf("[edata0]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
-  
       coo_buffers_cpos = imalloc(npes, "coo_buffers_cpos");
       coo_buffers      = (i2kv_t **)gk_malloc(npes*sizeof(i2kv_t *), "coo_buffers");
       for (pe=0; pe<npes; pe++)
@@ -318,7 +315,6 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
   
       /* adjust memory if needed */
       if (chunk >= nchunks) {
-        //printf("[%03"PRIDX"] Readjusting nchunks: %"PRIDX"\n", mype, nchunks);
         nchunks *= 1.2;
         coo_chunks_len = irealloc(coo_chunks_len, nchunks, "coo_chunks_len");
         coo_chunks     = (i2kv_t **)gk_realloc(coo_chunks, nchunks*sizeof(i2kv_t *), "coo_chunks");
@@ -343,7 +339,6 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
 
     /* done reading the edge file */
     if (mype == 0) {
-      //printf("[edata1]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
       gk_fclose(fpin);
       
       for (pe=0; pe<npes; pe++) 
@@ -385,10 +380,6 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
 
     //printf("[%03"PRIDX"] Done with sorting and de-duplication.\n", mype);
     gkMPI_Barrier(comm);
-
-    //printf("[%03"PRIDX"] Done with saving emdata into a file.\n", mype);
-    gkMPI_Barrier(comm);
-  
 
     /* convert the coo into the csr version */
     graph->nvtxs  = nvtxs;
@@ -432,11 +423,8 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
     nlinesread = 0;
     if (mype == 0) {
       sprintf(filename, "%s_nodes.txt", fstem);
-      fsize = 2*gk_getfsize(filename)/nchunks;  /* give it a 2x xtra space */
       fpin = gk_fopen(filename, "r", "DGLPart_ReadGraph: nodes.txt");
   
-      //printf("[vdata0]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
-
       con_buffers_cpos = imalloc(npes, "con_buffers_cpos");
       con_buffers      = (idx_t **)gk_malloc(npes*sizeof(idx_t *), "con_buffers");
       for (pe=0; pe<npes; pe++)
@@ -504,7 +492,6 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
   
     /* done reading the node file */
     if (mype == 0) {
-      //printf("[vdata1]nchunks: %"PRIDX", avg-chunksize: %"PRIDX"\n", nchunks, fsize);
       gk_fclose(fpin);
       
       for (pe=0; pe<npes; pe++) 
