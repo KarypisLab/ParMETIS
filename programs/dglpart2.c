@@ -12,6 +12,14 @@
 
 #define CHUNKSIZE (1<<16)
 
+/*************************************************************************
+* The following data structure stores key-key tuple 
+**************************************************************************/
+typedef struct edge_t {
+  idx_t u, v;
+} edge_t;
+
+
 /* The following is to perform a cyclic distribution of the input vertex IDs
    in order to balance the adjancency lists during the partitioning computations */
 /* (u%npes)*lnvtxs + u/npes */
@@ -27,8 +35,7 @@
 
 int DGLPart_GPart(char *fstem, idx_t nparts_per_pe, MPI_Comm comm);
 graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm);
-void i2kvsorti(size_t n, i2kv_t *base);
-void i2kvsortii(size_t n, i2kv_t *base);
+void edgesorti(size_t n, edge_t *base);
 void DGLPart_WritePartition(char *fstem, graph_t *graph, idx_t nparts, idx_t *mypart, MPI_Comm comm);
 idx_t DGLPart_mapFromCyclic(idx_t u, idx_t npes, idx_t *vtxdist);
 idx_t DGLPart_mapToCyclic(idx_t u, idx_t npes, idx_t *vtxdist);
@@ -158,7 +165,6 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
   idx_t gnvtxs, gnedges, nvtxs, ncon; 
   idx_t *vtxdist, *xadj, *adjncy, *vwgt, *vtype;
   MPI_Status stat;
-  ssize_t rlen;
   size_t lnlen=0;
   char *filename=NULL, *line=NULL;
   FILE *fpin=NULL;
@@ -246,7 +252,7 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
   {
     idx_t u, v, uu, vv, nlinesread, nchunks, chunk, chunksize, lnedges;
     idx_t *coo_buffers_cpos=NULL, *coo_chunks_len=NULL; 
-    i2kv_t **coo_buffers=NULL, **coo_chunks=NULL, *lcoo=NULL;
+    edge_t **coo_buffers=NULL, **coo_chunks=NULL, *lcoo=NULL;
     idx_t firstvtx, lastvtx;
 
     chunksize = CHUNKSIZE;
@@ -257,14 +263,14 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
       fpin = gk_fopen(filename, "r", "DGLPart_ReadGraph: edges.txt");
 
       coo_buffers_cpos = imalloc(npes, "coo_buffers_cpos");
-      coo_buffers      = (i2kv_t **)gk_malloc(npes*sizeof(i2kv_t *), "coo_buffers");
+      coo_buffers      = (edge_t **)gk_malloc(npes*sizeof(edge_t *), "coo_buffers");
       for (pe=0; pe<npes; pe++)
-        coo_buffers[pe]  = (i2kv_t *)gk_malloc(chunksize*sizeof(i2kv_t), "coo_buffers[pe]");
+        coo_buffers[pe]  = (edge_t *)gk_malloc(chunksize*sizeof(edge_t), "coo_buffers[pe]");
     }
   
     /* allocate memory for the chunks that will be collected by each PE */
     coo_chunks_len = imalloc(nchunks, "coo_chunks_len");
-    coo_chunks     = (i2kv_t **)gk_malloc(nchunks*sizeof(i2kv_t *), "coo_chunks");
+    coo_chunks     = (edge_t **)gk_malloc(nchunks*sizeof(edge_t *), "coo_chunks");
   
     /* start reading the edge file */
     for (chunk=0;;chunk++) {
@@ -272,7 +278,6 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
         iset(npes, 0, coo_buffers_cpos);
         nlinesread = 0;
         while (gk_getline(&line, &lnlen, fpin) != -1) {
-          rlen = strlen(gk_strtprune(line, "\n\r"));
           nlinesread++;
 
           /* NOTE: The edges are read as (dest-id, source-id), as they 
@@ -288,17 +293,15 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
           /* record the edge in its input direction */
           pe = uu%npes;
           ASSERT2(coo_buffers_cpos[pe] < chunksize);
-          coo_buffers[pe][coo_buffers_cpos[pe]].key1 = u;
-          coo_buffers[pe][coo_buffers_cpos[pe]].key2 = v;
-          coo_buffers[pe][coo_buffers_cpos[pe]].val  = 1;
+          coo_buffers[pe][coo_buffers_cpos[pe]].u = u;
+          coo_buffers[pe][coo_buffers_cpos[pe]].v = v;
           coo_buffers_cpos[pe]++;
 
           /* record the edge in its oppositive direction */
           pe = vv%npes;
           ASSERT2(coo_buffers_cpos[pe] < chunksize);
-          coo_buffers[pe][coo_buffers_cpos[pe]].key1 = v;
-          coo_buffers[pe][coo_buffers_cpos[pe]].key2 = u;
-          coo_buffers[pe][coo_buffers_cpos[pe]].val  = -1;
+          coo_buffers[pe][coo_buffers_cpos[pe]].u = v;
+          coo_buffers[pe][coo_buffers_cpos[pe]].v = u;
           coo_buffers_cpos[pe]++;
 
           /* the chunksize-1 is to account for the cases in which u and v are
@@ -317,22 +320,22 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
       if (chunk >= nchunks) {
         nchunks *= 1.2;
         coo_chunks_len = irealloc(coo_chunks_len, nchunks, "coo_chunks_len");
-        coo_chunks     = (i2kv_t **)gk_realloc(coo_chunks, nchunks*sizeof(i2kv_t *), "coo_chunks");
+        coo_chunks     = (edge_t **)gk_realloc(coo_chunks, nchunks*sizeof(edge_t *), "coo_chunks");
       }
   
       if (mype == 0) {
         for (pe=1; pe<npes; pe++) {
           gkMPI_Send((void *)&(coo_buffers_cpos[pe]), 1, IDX_T, pe, 0, comm);
-          gkMPI_Send((void *)coo_buffers[pe], coo_buffers_cpos[pe]*sizeof(i2kv_t), MPI_BYTE, pe, 0, comm);
+          gkMPI_Send((void *)coo_buffers[pe], coo_buffers_cpos[pe]*sizeof(edge_t), MPI_BYTE, pe, 0, comm);
         }
         coo_chunks_len[chunk] = coo_buffers_cpos[0];
-        coo_chunks[chunk]     = (i2kv_t *)gk_malloc(coo_chunks_len[chunk]*sizeof(i2kv_t), "coo_chunks[chunk]");
-        gk_ccopy(coo_buffers_cpos[0]*sizeof(i2kv_t), (char *)coo_buffers[0], (char *)coo_chunks[chunk]);
+        coo_chunks[chunk]     = (edge_t *)gk_malloc(coo_chunks_len[chunk]*sizeof(edge_t), "coo_chunks[chunk]");
+        gk_ccopy(coo_buffers_cpos[0]*sizeof(edge_t), (char *)coo_buffers[0], (char *)coo_chunks[chunk]);
       }
       else {
         gkMPI_Recv((void *)&(coo_chunks_len[chunk]), 1, IDX_T, 0, 0, comm, &stat);
-        coo_chunks[chunk] = (i2kv_t *)gk_malloc(coo_chunks_len[chunk]*sizeof(i2kv_t), "coo_chunks[chunk]");
-        gkMPI_Recv((void *)coo_chunks[chunk], coo_chunks_len[chunk]*sizeof(i2kv_t), MPI_BYTE, 0, 0, comm, &stat);
+        coo_chunks[chunk] = (edge_t *)gk_malloc(coo_chunks_len[chunk]*sizeof(edge_t), "coo_chunks[chunk]");
+        gkMPI_Recv((void *)coo_chunks[chunk], coo_chunks_len[chunk]*sizeof(edge_t), MPI_BYTE, 0, 0, comm, &stat);
       }
     }
     nchunks = chunk;
@@ -350,7 +353,7 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
     /* consolidate the chunks into lcoo lnedges */
     lnedges = isum(nchunks, coo_chunks_len, 1);
 
-    lcoo = (i2kv_t *)gk_malloc(sizeof(i2kv_t)*lnedges, "lcoo");
+    lcoo = (edge_t *)gk_malloc(sizeof(edge_t)*lnedges, "lcoo");
   
     lnedges = 0;
     for (chunk=0; chunk<nchunks; chunk++) {
@@ -361,25 +364,14 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
     }
     gk_free((void **)&coo_chunks_len, &coo_chunks, LTERM);
 
-    //printf("[%03"PRIDX"] Done with consolidating the chunks into single arrays.\n", mype);
-    gkMPI_Barrier(comm);
   
-
     /* sort and remove duplicates */
-    i2kvsorti(lnedges, lcoo);
+    edgesorti(lnedges, lcoo);
     for (j=0, i=1; i<lnedges; i++) {
-      if (lcoo[i].key1 == lcoo[j].key1 && lcoo[i].key2 == lcoo[j].key2) {
-        if (lcoo[i].val != -1)
-          printf("[%03"PRIDX"]Duplicate edges with metadata: %"PRIDX"\n", mype, i);
-      }
-      else {
+      if (lcoo[i].u != lcoo[j].u || lcoo[i].v != lcoo[j].v) 
         lcoo[++j] = lcoo[i];
-      }
     }
     lnedges = j+1;
-
-    //printf("[%03"PRIDX"] Done with sorting and de-duplication.\n", mype);
-    gkMPI_Barrier(comm);
 
     /* convert the coo into the csr version */
     graph->nvtxs  = nvtxs;
@@ -390,21 +382,17 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
     firstvtx = vtxdist[mype];
     lastvtx  = vtxdist[mype+1];
     for (i=0; i<lnedges; i++) {
-      ASSERT2(firstvtx <= lcoo[i].key1 && lcoo[i].key1 < lastvtx);
-      xadj[lcoo[i].key1-firstvtx]++;
+      ASSERT2(firstvtx <= lcoo[i].u && lcoo[i].u < lastvtx);
+      xadj[lcoo[i].u-firstvtx]++;
     }
     MAKECSR(i, nvtxs, xadj);
   
     for (i=0; i<lnedges; i++) 
-      adjncy[xadj[lcoo[i].key1-firstvtx]++] = lcoo[i].key2;
+      adjncy[xadj[lcoo[i].u-firstvtx]++] = lcoo[i].v;
     SHIFTCSR(i, nvtxs, xadj);
   
     gk_free((void **)&lcoo, LTERM);
   }
-
-  //printf("[%03"PRIDX"] Done with edges.\n", mype);
-  gkMPI_Barrier(comm);
-
 
 
   /* ======================================================= */
@@ -443,7 +431,6 @@ graph_t *DGLPart_ReadGraph(char *fstem, MPI_Comm comm)
         iset(npes, 0, con_buffers_cpos);
         nlinesread = 0;
         while (gk_getline(&line, &lnlen, fpin) != -1) {
-          rlen = strlen(gk_strtprune(line, "\n\r"));
           nlinesread++;
           pe = u%npes;
           u++;
@@ -623,29 +610,14 @@ idx_t DGLPart_mapToCyclic(idx_t u, idx_t npes, idx_t *vtxdist)
   
 
 /*************************************************************************/
-/*! Sorts based on increasing <key1, key2>, and decreasing <val> */
+/*! Sorts based on increasing <u, v> */
 /*************************************************************************/
-void i2kvsorti(size_t n, i2kv_t *base)
+void edgesorti(size_t n, edge_t *base)
 {
 #define ikeyval_lt(a, b) \
-  ((a)->key1 < (b)->key1 || \
-   ((a)->key1 == (b)->key1 && (a)->key2 < (b)->key2) || \
-    ((a)->key1 == (b)->key1 && (a)->key2 == (b)->key2 && (a)->val > (b)->val))
-  GK_MKQSORT(i2kv_t, base, n, ikeyval_lt);
+  ((a)->u < (b)->u || \
+   ((a)->u == (b)->u && (a)->v < (b)->v))
+  GK_MKQSORT(edge_t, base, n, ikeyval_lt);
 #undef ikeyval_lt
 }
-
-/*************************************************************************/
-/*! Sorts based on increasing <key1, key2>, and decreasing <val> */
-/*************************************************************************/
-void i2kvsortii(size_t n, i2kv_t *base)
-{
-#define ikeyval_lt(a, b) \
-  ((a)->key1 < (b)->key1 || \
-   ((a)->key1 == (b)->key1 && (a)->key2 < (b)->key2) || \
-    ((a)->key1 == (b)->key1 && (a)->key2 == (b)->key2 && (a)->val < (b)->val))
-  GK_MKQSORT(i2kv_t, base, n, ikeyval_lt);
-#undef ikeyval_lt
-}
-
 

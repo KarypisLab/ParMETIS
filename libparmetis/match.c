@@ -2046,6 +2046,8 @@ void DropEdges(ctrl_t *ctrl, graph_t *graph)
 
   //myprintf(ctrl, ">nedges: %"PRIDX"\n", xadj[nvtxs]);
 
+  STARTTIMER(ctrl, ctrl->AuxTmr2);
+
   maxdegree = xadj[1];
   for (i=1; i<nvtxs; i++) 
     maxdegree = gk_max(maxdegree, xadj[i+1]-xadj[i]);
@@ -2098,7 +2100,8 @@ void DropEdges(ctrl_t *ctrl, graph_t *graph)
   gk_free((void **)&graph->ndrop, LTERM);
 
   FreeCommSetupFields(graph);
+
+  STOPTIMER(ctrl, ctrl->AuxTmr2);
   
   WCOREPOP;
-
 }

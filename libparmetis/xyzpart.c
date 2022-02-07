@@ -478,8 +478,6 @@ void PseudoSampleSort(ctrl_t *ctrl, graph_t *graph, ikv_t *elmnts)
   idx_t *scounts, *rcounts, *sdispls, *rdispls, *vtxdist, *perm;
   ikv_t *relmnts, *mypicks, *allpicks;
 
-STARTTIMER(ctrl, ctrl->AuxTmr1);
-
   WCOREPUSH;
 
   nvtxs   = graph->nvtxs;
@@ -532,9 +530,6 @@ STARTTIMER(ctrl, ctrl->AuxTmr1);
 
   /* PrintPairs(ctrl, nlsamples-1, mypicks, "Mypicks"); */
 
-STOPTIMER(ctrl, ctrl->AuxTmr1);
-STARTTIMER(ctrl, ctrl->AuxTmr2);
-
   /* Gather the picks to all the processors */
   gkMPI_Allgather((void *)mypicks, 2*(nlsamples-1), IDX_T, (void *)allpicks, 
       2*(nlsamples-1), IDX_T, ctrl->comm);
@@ -557,11 +552,7 @@ STARTTIMER(ctrl, ctrl->AuxTmr2);
   mypicks[0].key    = IDX_MIN;
   mypicks[npes].key = IDX_MAX;
 
-
   WCOREPOP;  /* free allpicks */
-
-STOPTIMER(ctrl, ctrl->AuxTmr2);
-STARTTIMER(ctrl, ctrl->AuxTmr3);
 
   /* Compute the number of elements that belong to each bucket */
   iset(npes, 0, scounts);
@@ -584,8 +575,6 @@ STARTTIMER(ctrl, ctrl->AuxTmr3);
     rdispls[i+1] = rdispls[i] + rcounts[i];
   }
 
-STOPTIMER(ctrl, ctrl->AuxTmr3);
-STARTTIMER(ctrl, ctrl->AuxTmr4);
 
   /*
   PrintVector(ctrl, npes+1, 0, scounts, "Scounts");
@@ -608,9 +597,6 @@ STARTTIMER(ctrl, ctrl->AuxTmr4);
   gkMPI_Alltoallv((void *)elmnts,  scounts, sdispls, IDX_T,
                   (void *)relmnts, rcounts, rdispls, IDX_T, 
                   ctrl->comm);
-
-STOPTIMER(ctrl, ctrl->AuxTmr4);
-STARTTIMER(ctrl, ctrl->AuxTmr5);
 
   /* OK, now do the local sort of the relmnts. Use perm to keep track original order */
   perm = iwspacemalloc(ctrl, nrecv);
@@ -650,9 +636,6 @@ STARTTIMER(ctrl, ctrl->AuxTmr5);
     relmnts[i].val = perm[i];
   }
 
-STOPTIMER(ctrl, ctrl->AuxTmr5);
-STARTTIMER(ctrl, ctrl->AuxTmr6);
-
   /* OK, now sent it back. The role of send/recv arrays is now reversed. */
   gkMPI_Alltoallv((void *)relmnts, rcounts, rdispls, IDX_T,
                   (void *)elmnts,  scounts, sdispls, IDX_T, 
@@ -672,7 +655,6 @@ STARTTIMER(ctrl, ctrl->AuxTmr6);
 
   WCOREPOP;
 
-STOPTIMER(ctrl, ctrl->AuxTmr6);
 }
 
 
