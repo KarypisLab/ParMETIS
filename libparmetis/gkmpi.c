@@ -354,7 +354,7 @@ int gkMPI_Gatherv(void *sendbuf, idx_t sendcount, MPI_Datatype sendtype,
 
   /* bail-out if MPI 3.x cannot handle such large counts */
   for (i=0; i<npes; i++) { 
-    if (sendcount >= INT_MAX || recvcounts[i] >= INT_MAX || rdispls[i] >= INT_MAX)
+    if (*sendcount >= INT_MAX || recvcounts[i] >= INT_MAX || rdispls[i] >= INT_MAX)
       errexit("MPI_Gatherv message sizes goes over INT_MAX. Use MPI 4.x\n");
       break;
   }
