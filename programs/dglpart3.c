@@ -168,6 +168,7 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
   char *filename=NULL, *line=NULL;
   FILE *fpin=NULL;
   FILE *fpinaux=NULL;
+  char *newstr, *curstr;  
 
   idxwidth = sizeof(idx_t);
 
@@ -189,12 +190,45 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
     printf("ERROR: File '%s' does not exists.\n", filename);
     ier++;
   }
+  fpin = gk_fopen(lstnfiles, "r", "DGLPart_ReadGraph: lstnfile.txt");
+  while(gk_getline(&line, &lnlen, fpin) != -1) {
+    /* Token this line for file_name and global starting nid for this files nodes */
+    curstr = line;
+    curstr = strtok(curstr, " ");
+
+    idx_t ln = strlen(curstr) - 1; //newline character.
+    if (*curstr && curstr[ln] == '\n')
+      curstr[ln] = 0;
+
+    if (!gk_fexists(curstr)){
+      printf("ERROR: File '%s' does not exists.\n", filename);
+      ier++;
+      break;
+    }
+  }
+  gk_fclose(fpin);
 
   //sprintf(filename, "%s_nodes_%02d.txt", fstem, mype);
   if (!gk_fexists(lstefiles)) {
     printf("ERROR: File '%s' does not exists.\n", filename);
     ier++;
   }
+  fpin = gk_fopen(lstefiles, "r", "DGLPart_ReadGraph: lstefile.txt");
+  while(gk_getline(&line, &lnlen, fpin) != -1) {
+    /* Token this line for file_name and global starting nid for this files nodes */
+    curstr = line;
+    newstr = NULL;
+
+    idx_t ln = strlen(curstr) - 1; //newline character.
+    if (*curstr && curstr[ln] == '\n')
+      curstr[ln] = 0;
+    if (!gk_fexists(curstr)){
+      printf("ERROR: File '%s' does not exists.\n", filename);
+      ier++;
+      break;
+    }
+  }
+  gk_fclose(fpin);
   if (GlobalSEMaxComm(comm, ier) > 0)
     goto ERROR_EXIT;
 
@@ -248,7 +282,7 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
   /* read and distribute the edges */
   /* ======================================================= */
   {
-    idx_t u, v, uu, vv, nlinesread, nchunks, chunk, chunksize, lnedges;
+    idx_t u, v, uu, vv, nlinesread, prev_nchunks, nchunks, chunk, chunksize, lnedges;
     idx_t edgecount;
     idx_t *coo_buffers_cpos=NULL, *coo_chunks_len=NULL;
     edge_t **coo_buffers=NULL, **coo_chunks=NULL, *lcoo=NULL;
@@ -351,7 +385,12 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
 
 	      /* adjust memory if needed */
         if (chunk >= nchunks) {
+          prev_nchunks = nchunks;
           nchunks *= 1.2;
+          //To handle small graphs where the entire graph fits in CHUNKSIZE, which is 1<<16 = 64*1024
+          if (prev_nchunks == nchunks){
+            nchunks += 1;
+          }
           coo_chunks_len = irealloc(coo_chunks_len, nchunks, "coo_chunks_len");
           coo_chunks     = (edge_t **)gk_realloc(coo_chunks, nchunks*sizeof(edge_t *), "coo_chunks");
         }
@@ -589,10 +628,16 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
 
       	/* adjust memory if needed */
       	if (chunk >= nchunks) {
+          prev_nchunks = nchunks;
           nchunks *= 1.2;
+          //To handle small graphs where the entire graph fits in CHUNKSIZE, which is 1<<16 = 64*1024
+          if (prev_nchunks == nchunks){
+            nchunks += 1;
+          }
+
           con_chunks_len = irealloc(con_chunks_len, nchunks, "con_chunks_len");
           con_chunks = (idx_t **)gk_realloc(con_chunks, nchunks*sizeof(idx_t *), "con_chunks");
-	  con_id_chunks	= (idx_t **)gk_realloc(con_id_chunks, nchunks*sizeof(idx_t *), "con_id_chunks");
+      	  con_id_chunks	= (idx_t **)gk_realloc(con_id_chunks, nchunks*sizeof(idx_t *), "con_id_chunks");
       	}
 
 	/* prepare sending global nids to respective ranks here */
