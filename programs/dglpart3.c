@@ -505,7 +505,7 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
   /* read and distribute the node weights */
   /* ======================================================= */
   {
-    idx_t u, nlinesread, nchunks, chunk, chunksize;
+    idx_t u, nlinesread, prev_nchunks, nchunks, chunk, chunksize;
     idx_t *con_buffers_cpos=NULL, **con_buffers=NULL;
     idx_t *con_chunks_len=NULL, **con_chunks=NULL, **con_id_chunks=NULL;
     char *curstr, *newstr;
@@ -580,8 +580,8 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
       /* Token this line for file_name and global starting nid for this files nodes */
       curstr = line;
       curstr = strtok(curstr, " ");
-      start_nid = atoi(strtok(NULL, " "));
-      end_nid = atoi(strtok(NULL, " "));
+      start_nid = atol(strtok(NULL, " "));
+      end_nid = atol(strtok(NULL, " "));
 
       idx_t ln = strlen(curstr) - 1; //newline character.
       if (*curstr && curstr[ln] == '\n')
