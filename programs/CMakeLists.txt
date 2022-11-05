@@ -1,5 +1,8 @@
 include_directories(.)
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error")
+
 # Create programs.
 add_executable(pm_ptest ptest.c io.c adaptgraph.c)
 add_executable(pm_mtest mtest.c io.c)
