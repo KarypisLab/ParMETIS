@@ -18,7 +18,7 @@ To build ParMETIS you can follow the instructions below:
 
 ### Dependencies
 
-General dependencies for building slim are: gcc, cmake, build-essential, and an MPI library. 
+General dependencies for building ParMETIS are: gcc, cmake, build-essential, and an MPI library. 
 In Ubuntu systems these can be obtained from the apt package manager (e.g., apt-get install cmake, mpich, etc) 
 
 ```
@@ -33,7 +33,7 @@ In addition, you need to download and install
 
 ### Building and installing ParMETIS  
 
-METIS is primarily configured by passing options to make config. For example:
+ParMETIS is primarily configured by passing options to make config. For example:
 
 ```
 make config cc=mpicc prefix=~/local
@@ -56,7 +56,7 @@ directories, respectively.
     shared=1          - Build a shared library instead of a static one [off by default]
     prefix=[PATH]     - Set the installation prefix [~/local by default]
     gklib_path=[PATH] - Set the prefix path where GKlib has been installed. You can skip
-                        this if GKlib's installation prefix is the same as that of METIS.
+                        this if GKlib's installation prefix is the same as that of ParMETIS.
     metis_path=[PATH] - Set the prefix path where METIS has been installed. You can skip
                         this if METIS' installation prefix is the same as that of ParMETIS.
 
