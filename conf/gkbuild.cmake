@@ -28,7 +28,12 @@ endif(CYGWIN)
 if(CMAKE_COMPILER_IS_GNUCC)
 # GCC opts.
   set(GK_COPTIONS "${GK_COPTIONS} -std=c99 -fno-strict-aliasing")
+# -march=native is not a valid flag on PPC:
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "power|ppc|powerpc|ppc64|powerpc64" OR (APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES "ppc|ppc64"))
+  set(GK_COPTIONS "${GK_COPTIONS} -mtune=native")
+else()
   set(GK_COPTIONS "${GK_COPTIONS} -march=native")
+endif()
   if(NOT MINGW)
       set(GK_COPTIONS "${GK_COPTIONS} -fPIC")
   endif(NOT MINGW)
