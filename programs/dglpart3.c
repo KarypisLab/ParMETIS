@@ -162,6 +162,7 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
   idx_t npes, mype, ier;
   graph_t *graph=NULL;
   idx_t gnvtxs, gnedges, nvtxs, ncon; 
+  idx_t totalFileCount;
   idx_t *vtxdist, *xadj, *adjncy, *vwgt, *vtype;
   MPI_Status stat;
   size_t lnlen=0;
@@ -187,10 +188,10 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
 
   //sprintf(filename, "%s_edges_%02d.txt", fstem, mype);
   if (!gk_fexists(lstnfiles)) {
-    printf("ERROR: File '%s' does not exists.\n", filename);
+    printf("ERROR: File '%s' does not exists.\n", lstnfiles);
     ier++;
   }
-  fpin = gk_fopen(lstnfiles, "r", "DGLPart_ReadGraph: lstnfile.txt");
+  fpin = gk_fopen(lstnfiles, "r", "DGLPart_ReadGraph: metadata for nodes");
   while(gk_getline(&line, &lnlen, fpin) != -1) {
     /* Token this line for file_name and global starting nid for this files nodes */
     curstr = line;
@@ -201,7 +202,7 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
       curstr[ln] = 0;
 
     if (!gk_fexists(curstr)){
-      printf("ERROR: File '%s' does not exists.\n", filename);
+      printf("ERROR: File '%s' does not exists.\n", curstr);
       ier++;
       break;
     }
@@ -210,20 +211,22 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
 
   //sprintf(filename, "%s_nodes_%02d.txt", fstem, mype);
   if (!gk_fexists(lstefiles)) {
-    printf("ERROR: File '%s' does not exists.\n", filename);
+    printf("ERROR: File '%s' does not exists.\n", lstefiles);
     ier++;
   }
-  fpin = gk_fopen(lstefiles, "r", "DGLPart_ReadGraph: lstefile.txt");
+  totalFileCount = 0;
+  fpin = gk_fopen(lstefiles, "r", "DGLPart_ReadGraph: metadata for edges");
   while(gk_getline(&line, &lnlen, fpin) != -1) {
     /* Token this line for file_name and global starting nid for this files nodes */
     curstr = line;
     newstr = NULL;
+    totalFileCount ++;
 
     idx_t ln = strlen(curstr) - 1; //newline character.
     if (*curstr && curstr[ln] == '\n')
       curstr[ln] = 0;
     if (!gk_fexists(curstr)){
-      printf("ERROR: File '%s' does not exists.\n", filename);
+      printf("ERROR: File '%s' does not exists.\n", curstr);
       ier++;
       break;
     }
@@ -283,12 +286,13 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
   /* ======================================================= */
   {
     idx_t u, v, uu, vv, nlinesread, prev_nchunks, nchunks, chunk, chunksize, lnedges;
-    idx_t edgecount;
+    idx_t edgecount, finaledgecount;
+    idx_t retVal;
     idx_t *coo_buffers_cpos=NULL, *coo_chunks_len=NULL;
     edge_t **coo_buffers=NULL, **coo_chunks=NULL, *lcoo=NULL;
     edge_t *snd_buffer=NULL, *rcv_buffer=NULL;
     idx_t firstvtx, lastvtx;
-    idx_t mflinesread;
+    idx_t mflinesread, myiters, totaliters;
     idx_t *rcv_buffer_count=NULL;
     idx_t *snd_displs=NULL, *rcv_displs=NULL;
     char *newstr, *curstr;
@@ -319,32 +323,48 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
 
     /* allocate memory for storing the edges */
     lcoo = (edge_t *)gk_malloc(sizeof(edge_t)*edgecount, "lcoo");
-    printf("Allocated mem. for edges: %d\n", edgecount);
+    printf("Allocated mem. for edges: %ld\n", edgecount);
   
     /* start reading the edge file */
     lnedges = 0;
     chunk = 0;
     mflinesread = -1;
+		totaliters = totalFileCount/npes + ((totalFileCount % npes == 0) ? 0 : 1);
+		myiters = 0;
 
-    while(gk_getline(&line, &lnlen, fpin) != -1) {
+    while((myiters < totaliters)) {
+
+	    retVal = gk_getline(&line, &lnlen, fpin);
+	    if (retVal == -1){
+		    line = NULL;
+		    curstr = NULL;
+	    }
       mflinesread ++;
-      if((mflinesread % npes) != mype)
+      if((mflinesread % npes) != mype){
         continue;
+      }
 
       /* Token this line for file_name and global starting nid for this files nodes */
       curstr = line;
       newstr = NULL;
 
-      idx_t ln = strlen(curstr) - 1; //newline character.
-      if (*curstr && curstr[ln] == '\n')
-        curstr[ln] = 0;
-      fpinaux = gk_fopen(curstr, "r", "Reading files for edges");
+      if (curstr != NULL){
+      	idx_t ln = strlen(curstr) - 1; //newline character.
+      	if (*curstr && curstr[ln] == '\n')
+        	curstr[ln] = 0;
+      	fpinaux = gk_fopen(curstr, "r", "Reading files for edges");
+        printf("[Rank: %ld] Reading file: %s\n", mype, curstr);
+      } 
+			else {
+				fpinaux = NULL;
+        //printf("[Rank: %ld] Performing a dummy iteration\n", mype);
+			}
 
-      for (;;chunk++) {
+      for (;;) {
         iset(npes, 0, coo_buffers_cpos);
 
         nlinesread = 0;
-        while (gk_getline(&line, &lnlen, fpinaux) != -1) {
+        while ((fpinaux != NULL)&&(gk_getline(&line, &lnlen, fpinaux) != -1)) {
           nlinesread++;
 
           /* NOTE: The edges are read as (dest-id, source-id), as they 
@@ -430,10 +450,18 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
           GKASSERT (temp->v < gnvtxs); GKASSERT( temp->v >= 0);
         }
 				
-        if(mype == 0){
-          printf("[Rank: %d] ChunkID: %d has edges: %d\n", mype, chunk, coo_chunks_len[chunk]);
-        }
+        //if(mype == 0){
+        //  printf("[Rank: %d] ChunkID: %d has edges: %d\n", mype, chunk, coo_chunks_len[chunk]);
+        //}
+
+				// Increment the chunk counter
+				chunk ++;
       } // end of chunks for loop
+
+			// Increment the iterations counter for the current process. 
+			myiters ++;
+			line = NULL;
+			curstr = NULL;
 
       /*
       * Note that each process has equal no. of nodes/edges files to read. 
@@ -442,10 +470,13 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
       */
     }//end of main-while loop for the meta-edges file
     nchunks = chunk;
+    printf("[Rank: %ld] Total no, of chunks on my side: %ld\n", mype, nchunks);
 
     /* done reading the edge file */
-    gk_fclose(fpin);
-    gk_fclose(fpinaux);
+    if (fpin != NULL)
+    	gk_fclose(fpin);
+    if (fpinaux != NULL)
+    	gk_fclose(fpinaux);
       
     for (pe=0; pe<npes; pe++) 
       gk_free((void **)&coo_buffers[pe], LTERM);
@@ -455,16 +486,24 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
     gk_free((void **)&rcv_buffer, LTERM);
     gk_free((void **)&rcv_buffer_count, LTERM);
 
+
     lnedges = isum(nchunks, coo_chunks_len, 1);
+    printf("[Rank: %ld] Freed the buffers with edge count: %ld\n", mype, lnedges);
     lcoo = (edge_t *)gk_malloc(sizeof(edge_t)*lnedges, "lcoo");
     lnedges = 0;
     for(chunk=0; chunk<nchunks; chunk++){
       for(i=0; i<coo_chunks_len[chunk]; i++, lnedges++)
         lcoo[lnedges] = coo_chunks[chunk][i];
-      gk_free((void **)&coo_chunks[chunk], LTERM);
+      if ((coo_chunks[chunk] != NULL) && (coo_chunks_len[chunk] > 0))
+      	gk_free((void **)&coo_chunks[chunk], LTERM);
     }
     gk_free((void **)&coo_chunks_len, &coo_chunks, LTERM);
-    printf("[Rank: %d] Copied edges to coo buffers: %d\n", mype, lnedges);
+    //printf("[Rank: %d] Copied edges to coo buffers: %d\n", mype, lnedges);
+
+    // local edges count = lnedges
+    finaledgecount = GlobalSESumComm(comm, lnedges);
+    printf("[Rank: %ld] SYSTEM READ TOTAL EDGE COUNT IS %ld\n", mype, finaledgecount);
+
 
     /* sort and remove duplicates */
     edgesorti(lnedges, lcoo);
@@ -473,14 +512,14 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
         lcoo[++j] = lcoo[i];
     }
     lnedges = j+1;
-    printf("[Rank: %d] After sorting and removing duplicates: %d\n", mype, lnedges);
+    printf("[Rank: %ld] After sorting and removing duplicates: %ld\n", mype, lnedges);
 
     /* convert the coo into the csr version */
     graph->nvtxs  = nvtxs;
     graph->nedges = lnedges;
     xadj   = graph->xadj   = ismalloc(nvtxs+1, 0, "DGLPart_ReadGraph: xadj");
     adjncy = graph->adjncy = imalloc(lnedges, "DGLPart_ReadGraph: adjncy");
-    printf("[Rank: %d] Graph construction: Vertices: %d and edges: %d\n", mype, nvtxs+1, lnedges);
+    printf("[Rank: %ld] Graph construction: Vertices: %ld and edges: %ld\n", mype, nvtxs+1, lnedges);
   
     firstvtx = vtxdist[mype];
     lastvtx  = vtxdist[mype+1];
@@ -488,16 +527,16 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
       GKASSERT(firstvtx <= lcoo[i].u && lcoo[i].u < lastvtx);
       xadj[lcoo[i].u-firstvtx]++;
     }
-    printf("[Rank: %d] Completed coo entries\n", mype);
+    printf("[Rank: %ld] Completed coo entries\n", mype);
     MAKECSR(i, nvtxs, xadj);
-    printf("[Rank: %d] Completed CSR conversion\n", mype);
+    printf("[Rank: %ld] Completed CSR conversion\n", mype);
   
     for (i=0; i<lnedges; i++) 
       adjncy[xadj[lcoo[i].u-firstvtx]++] = lcoo[i].v;
     SHIFTCSR(i, nvtxs, xadj);
   
     gk_free((void **)&lcoo, LTERM);
-    printf("[Rank: %d] Done processing edges: %d\n", mype, lnedges);
+    printf("[Rank: %ld] Done processing edges: %ld\n", mype, lnedges);
   }
 
 
@@ -586,7 +625,7 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
       idx_t ln = strlen(curstr) - 1; //newline character.
       if (*curstr && curstr[ln] == '\n')
         curstr[ln] = 0;
-      fpinaux = gk_fopen(curstr, "r", "Reading files for edges");
+      fpinaux = gk_fopen(curstr, "r", "Reading files for nodes");
 
       gnid = start_nid; //should initialize this here... 
 
@@ -597,37 +636,30 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
       	while (gk_getline(&line, &lnlen, fpinaux) != -1) {
           nlinesread++;
           //pe = u%npes;
-	  pe = gnid%npes;
+	        pe = gnid%npes;
   
           curstr = line;
           newstr = NULL;
           for (i=0; i<ncon; i++) {
             con_buffers[pe][ncon*con_buffers_cpos[pe]+i] = strtoidx(curstr, &newstr, 10);
-	    if(i == 0){
-	      if ((con_buffers[pe][ncon*con_buffers_cpos[pe]+i] >= 4) || (con_buffers[pe][ncon*con_buffers_cpos[pe]+i] < 0)){
-	        printf("[Rank: %d] For vertex: %d node type read as : %d\n", mype, gnid, con_buffers[pe][ncon*con_buffers_cpos[pe]+i]);
-	        GKASSERT( con_buffers[pe][ncon*con_buffers_cpos[pe]+i] >= 0);
-	        GKASSERT( con_buffers[pe][ncon*con_buffers_cpos[pe]+i] < 4);
-	      }
-	    }
             curstr = newstr;
           }
  
           con_id_buffers[pe][con_buffers_cpos[pe]] = gnid; //u;
           con_buffers_cpos[pe]++;
 
-	  gnid++;
+	        gnid++;
           if (con_buffers_cpos[pe] >= chunksize) 
             break;
-      	}
-      	printf("[Rank: %d] Done reading nodes chnk: %d\n", mype, chunk);
+        }
+        printf("[Rank: %ld] Done reading nodes chnk: %ld\n", mype, chunk);
   
-      	/* distributed termination detection */
-      	if (GlobalSESumComm(comm, nlinesread) == 0)
+        /* distributed termination detection */
+        if (GlobalSESumComm(comm, nlinesread) == 0)
           break;
 
-      	/* adjust memory if needed */
-      	if (chunk >= nchunks) {
+        /* adjust memory if needed */
+        if (chunk >= nchunks) {
           prev_nchunks = nchunks;
           nchunks *= 1.2;
           //To handle small graphs where the entire graph fits in CHUNKSIZE, which is 1<<16 = 64*1024
@@ -637,10 +669,10 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
 
           con_chunks_len = irealloc(con_chunks_len, nchunks, "con_chunks_len");
           con_chunks = (idx_t **)gk_realloc(con_chunks, nchunks*sizeof(idx_t *), "con_chunks");
-      	  con_id_chunks	= (idx_t **)gk_realloc(con_id_chunks, nchunks*sizeof(idx_t *), "con_id_chunks");
-      	}
+          con_id_chunks	= (idx_t **)gk_realloc(con_id_chunks, nchunks*sizeof(idx_t *), "con_id_chunks");
+        }
 
-	/* prepare sending global nids to respective ranks here */
+	      /* prepare sending global nids to respective ranks here */
         iset(npes, 0, rcv_buffer_count);
         gkMPI_Alltoall((void *)con_buffers_cpos, 1, IDX_T, (void *)rcv_buffer_count, 1, IDX_T, comm);
 
@@ -663,57 +695,57 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
         con_chunks_len[chunk] = isum(npes, rcv_buffer_count, 1);
         con_id_chunks[chunk] = imalloc(con_chunks_len[chunk], "con_chunks[chunk]");
         icopy(con_chunks_len[chunk], rcv_buffer, con_id_chunks[chunk]); /* con_chunk_nids has global-nids after cyclic exchange */
-        printf("[Rank: %d] copied global_nids: %d \n", mype, con_chunks_len[chunk]);
+        printf("[Rank: %ld] copied global_nids: %ld \n", mype, con_chunks_len[chunk]);
 
         /* send out the node weights now to other ranks, as before */
         /* prepare snd_displs, rcv_displs, and message here */
         u = 0;
         for(pe=0; pe<npes; pe++){
           con_buffers_cpos[pe] = ncon*con_buffers_cpos[pe];
-	  rcv_buffer_count[pe] = ncon*rcv_buffer_count[pe];
+	        rcv_buffer_count[pe] = ncon*rcv_buffer_count[pe];
 
-	  icopy(con_buffers_cpos[pe], (void *)con_buffers[pe], (void *)&snd_buffer[u]);	
-	  u += con_buffers_cpos[pe];
-	}
+	        icopy(con_buffers_cpos[pe], (void *)con_buffers[pe], (void *)&snd_buffer[u]);	
+	        u += con_buffers_cpos[pe];
+	      }
 
-	snd_displs[0] = 0;
-	rcv_displs[0] = 0;
-	for(pe=1; pe<npes; pe++){
-	  snd_displs[pe] = snd_displs[pe-1] + con_buffers_cpos[pe-1];
-	  rcv_displs[pe] = rcv_displs[pe-1] + rcv_buffer_count[pe-1];
-	}
+	      snd_displs[0] = 0;
+	      rcv_displs[0] = 0;
+	      for(pe=1; pe<npes; pe++){
+	        snd_displs[pe] = snd_displs[pe-1] + con_buffers_cpos[pe-1];
+	        rcv_displs[pe] = rcv_displs[pe-1] + rcv_buffer_count[pe-1];
+	      }
 
         gkMPI_Alltoallv((void *)snd_buffer, con_buffers_cpos, snd_displs, IDX_T, (void *)rcv_buffer, rcv_buffer_count, rcv_displs, IDX_T, comm);
 
-        /* now after alltoallv, rcv_buffer has the node weights and node type */
-        con_chunks_len[chunk] = isum(npes, rcv_buffer_count, 1);
-        con_chunks[chunk] = imalloc(con_chunks_len[chunk], "con_chunks[chunk]");
-        icopy(con_chunks_len[chunk], rcv_buffer, con_chunks[chunk]);
-        printf("[Rank: %d] Copied node weights: %d into chunk: %d\n", mype, con_chunks_len[chunk], chunk );
-      }//end of processing ind. file.
+       /* now after alltoallv, rcv_buffer has the node weights and node type */
+       con_chunks_len[chunk] = isum(npes, rcv_buffer_count, 1);
+       con_chunks[chunk] = imalloc(con_chunks_len[chunk], "con_chunks[chunk]");
+       icopy(con_chunks_len[chunk], rcv_buffer, con_chunks[chunk]);
+       printf("[Rank: %ld] Copied node weights: %ld into chunk: %ld\n", mype, con_chunks_len[chunk], chunk );
+     }//end of processing ind. file.
 
-      GKASSERT(gnid == end_nid);
-      printf("[Rank: %d] Finished reading file... with ending chunk: %d\n", mype, chunk);
+     GKASSERT(gnid == end_nid);
+     printf("[Rank: %ld] Finished reading file... with ending chunk: %ld\n", mype, chunk);
 
-    } //end of file names
-    nchunks = chunk;
+   } //end of while loop
+   nchunks = chunk;
 
-    lvtxs = isum(nchunks, con_chunks_len, 1)/ncon;
-    GKASSERT(nvtxs == lvtxs);
+   lvtxs = isum(nchunks, con_chunks_len, 1)/ncon;
+   GKASSERT(nvtxs == lvtxs);
 
-    vwgt = graph->vwgt = imalloc(lvtxs*(ncon-1), "DDGLPart_ReadGraph vwgt");
-    s_vwgt = imalloc(lvtxs*(ncon-1), "DDGLPart_ReadGraph vwgt");
+   vwgt = graph->vwgt = imalloc(lvtxs*(ncon-1), "DDGLPart_ReadGraph vwgt");
+   s_vwgt = imalloc(lvtxs*(ncon-1), "DDGLPart_ReadGraph vwgt");
 
-    vtype = graph->vtype = imalloc(lvtxs, "DGLPart_ReadGraph: vtype");
-    s_vtype = imalloc(lvtxs, "DGLPart_ReadGraph: vtype");
+   vtype = graph->vtype = imalloc(lvtxs, "DGLPart_ReadGraph: vtype");
+   s_vtype = imalloc(lvtxs, "DGLPart_ReadGraph: vtype");
 
-    /* Temp buffers used to sort and store the nodes in the correct order to mimic the cyclic ordering */
-    idx_buffer = (edge_t *)gk_malloc(sizeof(edge_t)*lvtxs, "idx_buffer_lvtsx");
+   /* Temp buffers used to sort and store the nodes in the correct order to mimic the cyclic ordering */
+   idx_buffer = (edge_t *)gk_malloc(sizeof(edge_t)*lvtxs, "idx_buffer_lvtsx");
 
-    /* sort the global nids */
-    printf("[Rank: %d] Arranging data in graph objects ...\n", mype);
-    nvtxs = 0;
-    for(chunk=0; chunk<nchunks; chunk++){
+   /* sort the global nids */
+   printf("[Rank: %ld] Arranging data in graph objects ...\n", mype);
+   nvtxs = 0;
+   for(chunk=0; chunk<nchunks; chunk++){
       for(i=0; i<con_chunks_len[chunk]/ncon; i++){
         idx_buffer[nvtxs].u = con_id_chunks[chunk][i]; //actual global nids
 
@@ -723,66 +755,66 @@ graph_t *DGLPart_ReadGraph(char *fstem, char *lstnfiles, char *lstefiles, MPI_Co
         s_vtype[nvtxs] = con_chunks[chunk][ncon*i+0];
         for(j=1; j<ncon; j++){
           s_vwgt[(ncon-1)*nvtxs+j-1] = con_chunks[chunk][ncon*i+j];
-	}
-	nvtxs ++;
+	      }
+	      nvtxs ++;
       }
       gk_free((void **)&con_chunks[chunk], LTERM);
       gk_free((void **)&con_id_chunks[chunk], LTERM);
-    }
-    gk_free((void **)&con_chunks_len, LTERM);
+   }
+   gk_free((void **)&con_chunks_len, LTERM);
 
-    /*
-    * sort is based on edge_t.u
-    * Here u is the idx and v is the global nid
-    * we sort global nids, and use idx to re-arrange the node weights
-    */
-    printf("[Rank: %d] initiating sorting of edges...\n", mype);
-    edgesorti(nvtxs, idx_buffer);
-    printf("[Rank: %d] Sorting edges done...\n", mype);
+   /*
+   * sort is based on edge_t.u
+   * Here u is the idx and v is the global nid
+   * we sort global nids, and use idx to re-arrange the node weights
+   */
+   printf("[Rank: %ld] initiating sorting of edges...\n", mype);
+   edgesorti(nvtxs, idx_buffer);
+   printf("[Rank: %ld] Sorting edges done...\n", mype);
 
-    //Assert here to check global nids are sorted.
-    for(i=1; i<nvtxs; i++){
+   //Assert here to check global nids are sorted.
+   for(i=1; i<nvtxs; i++){
       if(idx_buffer[i].u < idx_buffer[i-1].u)
         break;
-    }
-    GKASSERT(i == nvtxs);
+   }
+   GKASSERT(i == nvtxs);
 
-    /*
-    * shuffle node types and node weights accordingly now
-    * order is defined by u's in the idx buffer
-    */
-    for(i=0; i<nvtxs; i++){
+   /*
+   * shuffle node types and node weights accordingly now
+   * order is defined by u's in the idx buffer
+   */
+   for(i=0; i<nvtxs; i++){
       vtype[i] = s_vtype[idx_buffer[i].v];
       for(j=1; j<ncon; j++){
         vwgt[(ncon-1)*i + j-1] = s_vwgt[(ncon-1)*idx_buffer[i].v+j-1];
       }
-    }
-    printf( "Done reading nodes: %d\n", nvtxs);
+   }
+   printf( "Done reading nodes: %ld\n", nvtxs);
 
-    /* done reading the node file */
-    gk_fclose(fpin);
-    gk_fclose(fpinaux);
+   /* done reading the node file */
+   gk_fclose(fpin);
+   gk_fclose(fpinaux);
 
-    /* free memory */
-    gk_free((void **)&s_vwgt, LTERM);
-    gk_free((void **)&s_vtype, LTERM);
-    gk_free((void **)&snd_buffer_count, LTERM);
-    gk_free((void **)&rcv_buffer_count, LTERM);
-    gk_free((void **)&snd_buffer, LTERM);
-    gk_free((void **)&rcv_buffer, LTERM);
-    gk_free((void **)&idx_buffer, LTERM);
+   /* free memory */
+   gk_free((void **)&s_vwgt, LTERM);
+   gk_free((void **)&s_vtype, LTERM);
+   gk_free((void **)&snd_buffer_count, LTERM);
+   gk_free((void **)&rcv_buffer_count, LTERM);
+   gk_free((void **)&snd_buffer, LTERM);
+   gk_free((void **)&rcv_buffer, LTERM);
+   gk_free((void **)&idx_buffer, LTERM);
       
-    for (pe=0; pe<npes; pe++) {
+   for (pe=0; pe<npes; pe++) {
       gk_free((void **)&con_buffers[pe], LTERM);
       gk_free((void **)&con_id_buffers[pe], LTERM);
-    }
+   }
   
-    gk_free((void **)&con_buffers_cpos, &con_buffers, LTERM);
+   gk_free((void **)&con_buffers_cpos, &con_buffers, LTERM);
   
-    /* populate vwgt and create (vmptr, vmdata) */
-    //ASSERT2(nvtxs == isum(nchunks, con_chunks_len, 1));
+   /* populate vwgt and create (vmptr, vmdata) */
+   //ASSERT2(nvtxs == isum(nchunks, con_chunks_len, 1));
 
-    GKASSERT(nvtxs == vtxdist[mype+1]-vtxdist[mype]);
+   GKASSERT(nvtxs == vtxdist[mype+1]-vtxdist[mype]);
   }
 
 #ifdef XXX
