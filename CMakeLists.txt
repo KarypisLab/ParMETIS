@@ -10,6 +10,9 @@ project(ParMETIS C)
 # endif()
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${MPI_COMPILE_FLAGS}")
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error")
+
 
 # Prepare libraries.
 if(SHARED)
