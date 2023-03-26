@@ -300,7 +300,7 @@ int gkMPI_Scatterv(void *sendbuf, idx_t *sendcounts, idx_t *sdispls,
 
   /* bail-out if MPI 3.x cannot handle such large counts */
   for (i=0; i<npes; i++) { 
-    if (sendcounts >= INT_MAX || recvcount >= INT_MAX || sdispls[i] >= INT_MAX)
+    if (sendcounts[i] >= INT_MAX || recvcount >= INT_MAX || sdispls[i] >= INT_MAX)
       errexit("MPI_Scatterv message sizes goes over INT_MAX. Use MPI 4.x\n");
   }
 
