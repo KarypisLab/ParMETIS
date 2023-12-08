@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  push:
+    paths:
+      - "**.c"
+      - "**.cmake"
+      - "**/CMakeLists.txt"
+      - ".github/workflows/ci.yml"
+
+jobs:
+
+  unix:
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        intsize: [32, 64]
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install MPI (Linux)
+      if: ${{ runner.os == 'Linux' }}
+      run: sudo apt install libopenmpi-dev
+
+    - name: Install MPI (MacOS)
+      if: ${{ runner.os == 'macOS' }}
+      run: brew install open-mpi
+
+    - run: cmake -B build -DIDXTYPEWIDTH=${{ matrix.intsize }}
+    - run: cmake --build build --parallel
+
+    - run: ctest --test-dir build -V
