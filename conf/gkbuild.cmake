@@ -3,141 +3,97 @@ include(CheckFunctionExists)
 include(CheckIncludeFile)
 
 # Setup options.
-option(GDB "enable use of GDB" OFF)
-option(ASSERT "turn asserts on" OFF)
-option(ASSERT2 "additional assertions" OFF)
-option(DEBUG "add debugging support" OFF)
-option(GPROF "add gprof support" OFF)
 option(OPENMP "enable OpenMP support" OFF)
 option(PCRE "enable PCRE support" OFF)
 option(GKREGEX "enable GKREGEX support" OFF)
 option(GKRAND "enable GKRAND support" OFF)
 
+
 # Add compiler flags.
 if(MSVC)
-  set(GK_COPTS "/Ox")
-  set(GK_COPTIONS "-DWIN32 -DMSC -D_CRT_SECURE_NO_DEPRECATE -DUSE_GKREGEX")
-elseif(MINGW)
-  set(GK_COPTS "-DUSE_GKREGEX")
+  set(GKlib_COPTIONS WIN32 MSC _CRT_SECURE_NO_DEPRECATE USE_GKREGEX)
+elseif(WIN32)
+  set(GKlib_COPTIONS USE_GKREGEX)
 else()
-  set(GK_COPTIONS "-DLINUX -D_FILE_OFFSET_BITS=64")
+  set(GKlib_COPTIONS LINUX FILE_OFFSET_BITS=64)
 endif(MSVC)
+
 if(CYGWIN)
-  set(GK_COPTIONS "${GK_COPTIONS} -DCYGWIN")
-endif(CYGWIN)
-if(CMAKE_COMPILER_IS_GNUCC)
-# GCC opts.
-  set(GK_COPTIONS "${GK_COPTIONS} -std=c99 -fno-strict-aliasing")
-# -march=native is not a valid flag on PPC:
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "power|ppc|powerpc|ppc64|powerpc64" OR (APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES "ppc|ppc64"))
-  set(GK_COPTIONS "${GK_COPTIONS} -mtune=native")
-else()
-  set(GK_COPTIONS "${GK_COPTIONS} -march=native")
-endif()
-  if(NOT MINGW)
-      set(GK_COPTIONS "${GK_COPTIONS} -fPIC")
-  endif(NOT MINGW)
-# GCC warnings.
-  set(GK_COPTIONS "${GK_COPTIONS} -Werror -Wall -pedantic -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unknown-pragmas -Wno-unused-label")
-elseif(${CMAKE_C_COMPILER_ID} MATCHES "Sun")
-# Sun insists on -xc99.
-  set(GK_COPTIONS "${GK_COPTIONS} -xc99")
-endif(CMAKE_COMPILER_IS_GNUCC)
-
-if(${CMAKE_C_COMPILER_ID} STREQUAL "Intel")
-  set(GK_COPTIONS "${GK_COPTIONS} -xHost")
-  #  set(GK_COPTIONS "${GK_COPTIONS} -fast")
+  list(APPEND GKlib_COPTIONS CYGWIN)
 endif()
 
-# Add support for the Accelerate framework in OS X
 if(APPLE)
-  set(GK_COPTIONS "${GK_COPTIONS} -framework Accelerate")
-endif(APPLE)
+  list(APPEND GKlib_COPTIONS MACOS)
+endif()
+
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+  list(APPEND GKlib_COPTS -fno-strict-aliasing -Werror -Wall -pedantic -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unknown-pragmas -Wno-unused-label)
+endif()
+
+if(UNIX)
+include(CheckPIESupported)
+check_pie_supported()
+set(CMAKE_POSITION_INDEPENDENT_CODE true)
+endif()
 
 # Find OpenMP if it is requested.
 if(OPENMP)
-  include(FindOpenMP)
-  if(OPENMP_FOUND)
-    set(GK_COPTIONS "${GK_COPTIONS} -D__OPENMP__ ${OpenMP_C_FLAGS}")
-  else()
-    message(WARNING "OpenMP was requested but support was not found")
-  endif(OPENMP_FOUND)
-endif(OPENMP)
+  find_package(OpenMP REQUIRED)
+  list(APPEND GKlib_COPTIONS __OPENMP__)
+endif()
 
-
-# Add various definitions.
-if(GDB)
-  set(GK_COPTS "${GK_COPTS} -g")
-  set(GK_COPTIONS "${GK_COPTIONS} -Werror")
-else()
-  set(GK_COPTS "-O3")
-endif(GDB)
-
-
-if(DEBUG)
-  set(GK_COPTS "-Og")
-  set(GK_COPTIONS "${GK_COPTIONS} -DDEBUG")
-endif(DEBUG)
-
-if(GPROF)
-  set(GK_COPTS "-pg")
-endif(GPROF)
-
-if(NOT ASSERT)
-  set(GK_COPTIONS "${GK_COPTIONS} -DNDEBUG")
-endif(NOT ASSERT)
-
-if(NOT ASSERT2)
-  set(GK_COPTIONS "${GK_COPTIONS} -DNDEBUG2")
-endif(NOT ASSERT2)
-
+# Set the CPU type
+if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
+  list(APPEND GKlib_COPTIONS NO_X86=1)
+endif()
 
 # Add various options
 if(PCRE)
-  set(GK_COPTIONS "${GK_COPTIONS} -D__WITHPCRE__")
-endif(PCRE)
+  list(APPEND GKlib_COPTIONS __WITHPCRE__)
+endif()
 
 if(GKREGEX)
-  set(GK_COPTIONS "${GK_COPTIONS} -DUSE_GKREGEX")
-endif(GKREGEX)
+list(APPEND GKlib_COPTIONS USE_GKREGEX)
+endif()
 
 if(GKRAND)
-  set(GK_COPTIONS "${GK_COPTIONS} -DUSE_GKRAND")
-endif(GKRAND)
+list(APPEND GKlib_COPTIONS USE_GKRAND)
+endif()
 
 
 # Check for features.
 check_include_file(execinfo.h HAVE_EXECINFO_H)
 if(HAVE_EXECINFO_H)
-  set(GK_COPTIONS "${GK_COPTIONS} -DHAVE_EXECINFO_H")
+  list(APPEND GKlib_COPTIONS HAVE_EXECINFO_H)
 endif(HAVE_EXECINFO_H)
 
 check_function_exists(getline HAVE_GETLINE)
 if(HAVE_GETLINE)
-  set(GK_COPTIONS "${GK_COPTIONS} -DHAVE_GETLINE")
+ list(APPEND GKlib_COPTIONS HAVE_GETLINE)
 endif(HAVE_GETLINE)
 
 
 # Custom check for TLS.
 if(MSVC)
-  set(GK_COPTIONS "${GK_COPTIONS} -D__thread=__declspec(thread)")
+ list(APPEND GKlib_COPTIONS __thread=__declspec(thread))
 
   # This if checks if that value is cached or not.
   if("${HAVE_THREADLOCALSTORAGE}" MATCHES "^${HAVE_THREADLOCALSTORAGE}$")
+    message(CHECK_START "checking for thread-local storage")
     try_compile(HAVE_THREADLOCALSTORAGE
       ${CMAKE_BINARY_DIR}
-      ${CMAKE_SOURCE_DIR}/conf/check_thread_storage.c)
+      ${CMAKE_CURRENT_LIST_DIR}/check_thread_storage.c)
     if(HAVE_THREADLOCALSTORAGE)
-      message(STATUS "checking for thread-local storage - found")
+      message(CHECK_PASS "found")
     else()
-      message(STATUS "checking for thread-local storage - not found")
+      message(CHECK_FAIL "not found")
     endif()
   endif()
   if(NOT HAVE_THREADLOCALSTORAGE)
-    set(GK_COPTIONS "${GK_COPTIONS} -D__thread=")
+    list(APPEND GKlib_COPTIONS __thread=)
   endif()
 endif()
 
 # Finally set the official C flags.
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${GK_COPTIONS} ${GK_COPTS}")
-
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:${GKlib_COPTS}>")
+add_compile_definitions("$<$<COMPILE_LANGUAGE:C>:${GKlib_COPTIONS}>")

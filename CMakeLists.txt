@@ -1,41 +1,43 @@
-cmake_minimum_required(VERSION 2.8)
-project(ParMETIS C)
+cmake_minimum_required(VERSION 3.14...3.28)
+project(ParMETIS LANGUAGES C)
 
+# --- need METIS first
+include(FetchContent)
 
-# Search for MPI.
-# GK commented this out as it seems to be creating problems
-# include(FindMPI)
-# if(NOT MPI_FOUND)
-#   message(FATAL_ERROR "mpi is not found")
-# endif()
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${MPI_COMPILE_FLAGS}")
+FetchContent_Declare(GKlib
+GIT_REPOSITORY https://github.com/scivision/GKlib.git
+GIT_TAG 44630ca
+GIT_SHALLOW true
+)
+FetchContent_MakeAvailable(GKlib)
 
+FetchContent_Declare(metis_fc
+GIT_REPOSITORY https://github.com/scivision/metis.git
+GIT_TAG fd7799b
+GIT_SHALLOW true
+)
 
-# Prepare libraries.
-if(SHARED)
-  set(ParMETIS_LIBRARY_TYPE SHARED)
-else()
-  set(ParMETIS_LIBRARY_TYPE STATIC)
+FetchContent_MakeAvailable(metis_fc)
+
+if(NOT DEFINED REALTYPEWIDTH)
+  set(REALTYPEWIDTH 32)
 endif()
+if(NOT DEFINED IDXTYPEWIDTH)
+  set(IDXTYPEWIDTH 32)
+endif()
+add_compile_definitions(REALTYPEWIDTH=${REALTYPEWIDTH} IDXTYPEWIDTH=${IDXTYPEWIDTH})
+
+message(STATUS "${PROJECT_NAME} ${PROJECT_VERSION} CMake ${CMAKE_VERSION}
+REALTYPEWIDTH=${REALTYPEWIDTH} IDXTYPEWIDTH=${IDXTYPEWIDTH}")
+message(STATUS "METIS ${metis_fc_SOURCE_DIR}")
+message(STATUS "GKlib ${gklib_SOURCE_DIR}")
+
+find_package(MPI REQUIRED)
 
 include(./conf/gkbuild.cmake)
 
-# List of paths that the compiler will search for header files.
-# i.e., the -I equivalent
-include_directories(include)
-include_directories(${MPI_INCLUDE_PATH})
-include_directories(${GKLIB_PATH}/include)
-include_directories(${METIS_PATH}/include)
-include_directories(${CMAKE_INSTALL_PREFIX}/include)
+install(FILES include/parmetis.h TYPE INCLUDE)
 
-# List of paths that the compiler will search for library files.
-# i.e., the -L equivalent
-link_directories(${GKLIB_PATH}/lib)
-link_directories(${METIS_PATH}/lib)
-link_directories(${CMAKE_INSTALL_PREFIX}/lib)
-
-# List of directories that cmake will look for CMakeLists.txt
-add_subdirectory(include)
 add_subdirectory(libparmetis)
 add_subdirectory(programs)
 

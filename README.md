@@ -1,11 +1,11 @@
-# ParMETIS 
+# ParMETIS
 
-ParMETIS is an MPI-based library for partitioning graphs, partitioning finite element meshes, 
-and producing fill reducing orderings for sparse matrices. The algorithms implemented in 
-ParMETIS are based on the multilevel recursive-bisection, multilevel k-way, and multi-constraint 
+ParMETIS is an MPI-based library for partitioning graphs, partitioning finite element meshes,
+and producing fill reducing orderings for sparse matrices. The algorithms implemented in
+ParMETIS are based on the multilevel recursive-bisection, multilevel k-way, and multi-constraint
 partitioning schemes developed in our lab.
 
-##  Downloading ParMETIS
+## Downloading ParMETIS
 
 You can download ParMETIS by simply cloning it using the command:
 ```
@@ -18,8 +18,8 @@ To build ParMETIS you can follow the instructions below:
 
 ### Dependencies
 
-General dependencies for building ParMETIS are: gcc, cmake, build-essential, and an MPI library. 
-In Ubuntu systems these can be obtained from the apt package manager (e.g., apt-get install cmake, mpich, etc) 
+General dependencies for building ParMETIS are: gcc, cmake, build-essential, and an MPI library.
+In Ubuntu systems these can be obtained from the apt package manager (e.g., apt-get install cmake, mpich, etc)
 
 ```
 sudo apt-get install build-essential
@@ -27,11 +27,11 @@ sudo apt-get install cmake
 ```
 
 In addition, you need to download and install
-[GKlib](https://github.com/KarypisLab/GKlib) and 
-[METIS](https://github.com/KarypisLab/METIS) by following the instructions there. 
+[GKlib](https://github.com/KarypisLab/GKlib) and
+[METIS](https://github.com/KarypisLab/METIS) by following the instructions there.
 
 
-### Building and installing ParMETIS  
+### Building and installing ParMETIS
 
 ParMETIS is primarily configured by passing options to make config. For example:
 
@@ -40,7 +40,7 @@ make config cc=mpicc prefix=~/local
 make install
 ```
 
-will configure ParMETIS to be built using mpicc and then install the binaries, header files, and libraries at 
+will configure ParMETIS to be built using mpicc and then install the binaries, header files, and libraries at
 
 ```
 ~/local/bin
@@ -78,15 +78,12 @@ directories, respectively.
     make distclean
          Performs clean and completely removes the build directory.
 
-
 ### Definitions of supported data types
 
 ParMETIS uses the same data types for integers and floating point numbers (32/64 bit
 integers and single/double precision floating point numbers) as used when configuring
 and building METIS.
 
-
 ## Copyright & License Notice
+
 Copyright 1998-2020, Regents of the University of Minnesota
-
-
