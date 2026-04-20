@@ -4,21 +4,21 @@ if(NOT CMAKE_BUILD_TYPE AND NOT DEFINED ENV{CMAKE_BUILD_TYPE})
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Debug or Release")
 endif()
 
-project(parmetis LANGUAGES C VERSION 1.0.0)
+project(PARMETIS LANGUAGES C VERSION 1.0.0)
 
 # --- need METIS first
 include(GNUInstallDirs)
 include(FetchContent)
 
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT AND parmetis_IS_TOP_LEVEL)
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT AND PARMETIS_IS_TOP_LEVEL)
   set(CMAKE_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/local" CACHE PATH "install prefix" FORCE)
 endif()
 
 message(STATUS "${PROJECT_NAME} ${PROJECT_VERSION} CMake ${CMAKE_VERSION} install prefix ${CMAKE_INSTALL_PREFIX}")
 
-set(metis_url "https://github.com/scivision/METIS/archive/777472ae3cd15a8e6d1e5b7d6c347d21947e3ab2.tar.gz")
-FetchContent_Declare(metis URL ${metis_url})
-FetchContent_MakeAvailable(metis)
+set(metis_url "https://github.com/scivision/METIS/archive/abb37f687925191e8c0aafeaaddc80f4d9431dbc.tar.gz")
+FetchContent_Declare(METIS URL ${metis_url})
+FetchContent_MakeAvailable(METIS)
 
 set(CMAKE_C_STANDARD 99)
 
@@ -38,13 +38,13 @@ target_include_directories(parmetis PUBLIC
 "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include;${PROJECT_SOURCE_DIR}/libparmetis;${metis_SOURCE_DIR}/include>"
 $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
-target_link_libraries(parmetis PRIVATE MPI::MPI_C metis::metis)
+target_link_libraries(parmetis PRIVATE MPI::MPI_C METIS::METIS)
 
 if(SHARED)
   target_link_libraries(parmetis PRIVATE metis GKlib)
 endif()
 
-add_library(parmetis::parmetis ALIAS parmetis)
+add_library(PARMETIS::PARMETIS ALIAS parmetis)
 
 install(TARGETS parmetis EXPORT ${PROJECT_NAME}-targets)
 

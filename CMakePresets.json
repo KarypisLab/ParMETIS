@@ -4,22 +4,23 @@
 "configurePresets": [
 {
   "name": "default",
-  "binaryDir": "${sourceDir}/build",
+  "binaryDir": "build",
+  "installDir": "${fileDir}/build/local",
   "cacheVariables": {
-    "CMAKE_COMPILE_WARNING_AS_ERROR": true
+    "CMAKE_BUILD_TYPE": "Release",
+    "REALTYPEWIDTH": "32",
+    "IDXTYPEWIDTH": "32"
+  }
+},
+{ "name": "int64", "inherits": "default",
+  "cacheVariables": {
+    "IDXTYPEWIDTH": "64"
   }
 }
 ],
 "buildPresets": [
-  {
-    "name": "default",
-    "configurePreset": "default"
-  },
-  {
-    "name": "release",
-    "configurePreset": "default",
-    "configuration": "Release"
-  }
+  { "name": "default", "configurePreset": "default", "jobs": 0 },
+  { "name": "int64", "configurePreset": "int64", "inherits": "default" }
 ],
 "testPresets": [
 {
@@ -32,40 +33,23 @@
   "execution": {
     "noTestsAction": "error",
     "scheduleRandom": true,
-    "stopOnFailure": false,
-    "timeout": 60
+    "stopOnFailure": false
   }
-},
-{
-  "name": "release", "inherits": "default",
-  "configuration": "Release"
 }
 ],
 "workflowPresets": [
   {
     "name": "default",
     "steps": [
-      {
-        "type": "configure",
-        "name": "default"
-      },
-      {
-        "type": "build",
-        "name": "default"
-      }
+      { "type": "configure", "name": "default" },
+      { "type": "build", "name": "default" }
     ]
   },
   {
-    "name": "release",
+    "name": "int64",
     "steps": [
-      {
-        "type": "configure",
-        "name": "default"
-      },
-      {
-        "type": "build",
-        "name": "release"
-      }
+      { "type": "configure", "name": "int64" },
+      { "type": "build", "name": "int64" }
     ]
   }
 ]

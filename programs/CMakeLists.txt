@@ -8,7 +8,7 @@ add_executable(pm_dglpart dglpart.c)
 # Link with the required libraries
 foreach(prog IN ITEMS pm_ptest pm_mtest pm_parmetis pm_pometis pm_dglpart)
   target_include_directories(${prog} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${metis_fc_SOURCE_DIR}/include)
-  target_link_libraries(${prog} PRIVATE parmetis metis GKlib MPI::MPI_C
+  target_link_libraries(${prog} PRIVATE parmetis METIS::METIS GKlib MPI::MPI_C
   $<$<BOOL:${UNIX}>:m>)
 endforeach(prog)
 
