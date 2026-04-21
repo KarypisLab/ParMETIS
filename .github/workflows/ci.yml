@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    paths:
+      - "**.c"
+      - "**.cmake"
+      - "**/CMakeLists.txt"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+
+# avoid wasted runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
+jobs:
+
+  unix:
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+
+    steps:
+    - &mpi-linux
+      name: Install MPI (Linux)
+      if: ${{ runner.os == 'Linux' }}
+      run: sudo apt install libopenmpi-dev
+
+    - &mpi-macos
+      name: Install MPI (MacOS)
+      if: ${{ runner.os == 'macOS' }}
+      run: brew install open-mpi
+
+    - &checkout
+       uses: actions/checkout@v6
+
+    - run: cmake --workflow default
+
+  int64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - *mpi-linux
+    - *checkout
+
+    - run: cmake --workflow int64

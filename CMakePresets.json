@@ -1,0 +1,56 @@
+{
+  "version": 6,
+
+"configurePresets": [
+{
+  "name": "default",
+  "binaryDir": "build",
+  "installDir": "${fileDir}/build/local",
+  "cacheVariables": {
+    "CMAKE_BUILD_TYPE": "Release",
+    "REALTYPEWIDTH": "32",
+    "IDXTYPEWIDTH": "32"
+  }
+},
+{ "name": "int64", "inherits": "default",
+  "cacheVariables": {
+    "IDXTYPEWIDTH": "64"
+  }
+}
+],
+"buildPresets": [
+  { "name": "default", "configurePreset": "default", "jobs": 0 },
+  { "name": "int64", "configurePreset": "int64", "inherits": "default" }
+],
+"testPresets": [
+{
+  "name": "default",
+  "configurePreset": "default",
+  "output": {
+    "outputOnFailure": true,
+    "verbosity": "verbose"
+  },
+  "execution": {
+    "noTestsAction": "error",
+    "scheduleRandom": true,
+    "stopOnFailure": false
+  }
+}
+],
+"workflowPresets": [
+  {
+    "name": "default",
+    "steps": [
+      { "type": "configure", "name": "default" },
+      { "type": "build", "name": "default" }
+    ]
+  },
+  {
+    "name": "int64",
+    "steps": [
+      { "type": "configure", "name": "int64" },
+      { "type": "build", "name": "int64" }
+    ]
+  }
+]
+}
