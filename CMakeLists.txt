@@ -16,7 +16,7 @@ endif()
 
 message(STATUS "${PROJECT_NAME} ${PROJECT_VERSION} CMake ${CMAKE_VERSION} install prefix ${CMAKE_INSTALL_PREFIX}")
 
-set(metis_url "https://github.com/scivision/METIS/archive/abb37f687925191e8c0aafeaaddc80f4d9431dbc.tar.gz")
+set(metis_url "https://github.com/scivision/METIS/archive/456244e99d7f0027706033d18bc1b3424d3507cc.tar.gz")
 FetchContent_Declare(METIS URL ${metis_url})
 FetchContent_MakeAvailable(METIS)
 
@@ -35,7 +35,7 @@ install(FILES include/parmetis.h TYPE INCLUDE)
 
 add_library(parmetis)
 target_include_directories(parmetis PUBLIC
-"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include;${PROJECT_SOURCE_DIR}/libparmetis;${metis_SOURCE_DIR}/include>"
+"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include;${PROJECT_SOURCE_DIR}/libparmetis;${metis_BINARY_DIR}>"
 $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_link_libraries(parmetis PRIVATE MPI::MPI_C METIS::METIS)
