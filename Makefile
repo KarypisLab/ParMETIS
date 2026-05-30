@@ -6,9 +6,9 @@ assert2    = not-set
 debug      = not-set
 openmp     = not-set
 shared     = not-set
-prefix     = ~/local
-gklib_path = ~/local
-metis_path = ~/local
+prefix     = $(HOME)/local
+gklib_path = $(HOME)/local
+metis_path = $(HOME)/local
 
 
 # Basically proxies everything to the builddir cmake.
@@ -23,13 +23,13 @@ BUILDDIR = build/$(systype)-$(cputype)
 # Process configuration options.
 CONFIG_FLAGS = -DCMAKE_VERBOSE_MAKEFILE=1
 ifneq ($(gklib_path), not-set)
-    CONFIG_FLAGS += -DGKLIB_PATH=$(abspath $(gklib_path)) 
+    CONFIG_FLAGS += -DGKLIB_PATH="$(abspath $(gklib_path))"
 endif
 ifneq ($(metis_path), not-set)
-    CONFIG_FLAGS += -DMETIS_PATH=$(abspath $(metis_path))
+    CONFIG_FLAGS += -DMETIS_PATH="$(abspath $(metis_path))"
 endif
 ifneq ($(prefix), not-set)
-    CONFIG_FLAGS += -DCMAKE_INSTALL_PREFIX=$(prefix)
+    CONFIG_FLAGS += -DCMAKE_INSTALL_PREFIX="$(abspath $(prefix))"
 endif
 ifneq ($(gdb), not-set)
     CONFIG_FLAGS += -DGDB=$(gdb)
@@ -55,7 +55,7 @@ endif
 
 define run-config
 mkdir -p $(BUILDDIR)
-cd $(BUILDDIR) && cmake $(CURDIR) $(CONFIG_FLAGS)
+cd $(BUILDDIR) && cmake "$(CURDIR)" $(CONFIG_FLAGS)
 endef
 
 all clean install:
