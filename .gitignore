@@ -59,3 +59,10 @@ graphs/*.epart.*
 graphs/*.npart.*
 .svn/
 
+
+# AI agent session artifacts (Claude Code hooks)
+.aijournal/
+.aisources/
+
+# macOS Finder droppings
+.DS_Store
