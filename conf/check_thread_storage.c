@@ -1,5 +1,9 @@
-extern __thread int x;
+#if defined(_MSC_VER)
+#define __thread __declspec(thread)
+#endif
+
+__thread int x;
 
 int main(int argc, char **argv) {
-  return 0;
+  return x;
 }
