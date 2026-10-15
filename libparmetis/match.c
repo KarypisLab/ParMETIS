@@ -1315,12 +1315,8 @@ void CreateCoarseGraph_Global(ctrl_t *ctrl, graph_t *graph, idx_t cnvtxs)
 
       cnedges += nedges;
 
-      /* reset the htable */
-      for (j=cxadj[cnvtxs]; j<cnedges; j++) {
-        k = cadjncy[j];
-        for (kk=k&mask; cadjncy[htable[kk]]!=k; kk=((kk+1)&mask));
-        htable[kk] = -1;
-      }
+      /* Clearing a collision chain one key at a time can read cadjncy[-1]. */
+      iset(htsize, -1, htable);
 
       cxadj[++cnvtxs] = cnedges;
     }
