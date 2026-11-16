@@ -487,7 +487,7 @@ STARTTIMER(ctrl, ctrl->AuxTmr1);
 
   /* determine the number of local samples */
   //nlsamples = (GlobalSESum(ctrl, graph->nedges) + graph->gnvtxs)/(npes*npes);
-  nlsamples = graph->gnvtxs/(npes*npes);
+  nlsamples = graph->gnvtxs/((int64_t)npes*npes);
   if (nlsamples > npes)
     nlsamples = npes;
   else if (nlsamples < 75)
