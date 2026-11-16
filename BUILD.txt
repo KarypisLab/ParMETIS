@@ -1,7 +1,7 @@
 ------------------------------------------------------------------------------
-Building ParMETIS requires CMake 2.8, found at http://www.cmake.org/, as well as
-GNU make. Assumming CMake and GNU make are installed, two commands should
-suffice to build ParMETIS:
+Building ParMETIS requires CMake 3.10 or later, found at https://cmake.org/,
+GNU make, an MPI library, and installed copies of GKlib and METIS. Assuming
+these are installed, two commands should suffice to build ParMETIS:
 
      $ make config
      $ make
@@ -17,11 +17,15 @@ example:
 would configure ParMETIS to be built as a shared library.
 
 Common configuration options are:
-  cc=[compiler]   - The C compiler to use [default is mpicc]
-  cxx=[compiler]  - The C++ compiler to use [default is mpicxx]
-  shared=1        - Build a shared library instead of a static one 
-                    [off by default]
-  prefix=[PATH]   - Set the installation prefix [/usr/local/ by default]
+  cc=[compiler]     - The C compiler to use [default is mpicc]
+  shared=1          - Build a shared library instead of a static one 
+                      [off by default]
+  prefix=[PATH]     - Set the installation prefix [~/local by default]
+  gklib_path=[PATH] - Set the prefix where GKlib is installed
+                      [~/local by default]
+  metis_path=[PATH] - Set the prefix where METIS is installed
+                      [~/local by default]
+  openmp=1          - Enable OpenMP support [off by default]
 
 Advanced debugging related options:
   gdb=1       - Build with support for GDB [off by default]
@@ -35,7 +39,7 @@ To install ParMETIS, run
 
     $ make install
 
-The default installation prefix is /usr/local. To pick an installation 
+The default installation prefix is ~/local. To pick an installation 
 prefix for ParMETIS pass prefix=[path] to make config. For example,
 
     $ make config prefix=~/myroot/
