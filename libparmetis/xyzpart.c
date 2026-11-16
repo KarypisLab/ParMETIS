@@ -553,7 +553,7 @@ STARTTIMER(ctrl, ctrl->AuxTmr2);
 
   /* Select the final splitters. Set the boundaries to simplify coding */
   for (i=1; i<npes; i++)
-    mypicks[i] = allpicks[i*ntsamples/npes];
+    mypicks[i] = allpicks[((int64_t)i*ntsamples)/npes];
   mypicks[0].key    = IDX_MIN;
   mypicks[npes].key = IDX_MAX;
 
